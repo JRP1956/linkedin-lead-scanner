@@ -1,0 +1,184 @@
+# config/icp.yaml
+# Edit this file to change your ICP targeting. No code changes needed.
+# Version this file in git to track targeting changes over time.
+
+version: "2.0"
+name: "Comprehensive ICP — Marketing / Growth / Sales Leadership"
+
+titles:
+  exact_match:
+    # ─── Marketing ────────────────────────────────────────────────────
+    - "VP of Marketing"
+    - "VP Marketing"
+    - "Head of Marketing"
+    - "CMO"
+    - "Chief Marketing Officer"
+    - "Director of Marketing"
+    - "Senior Director of Marketing"
+    - "Head of Digital Marketing"
+    - "Head of Brand"
+    - "Head of Content"
+    # ─── Growth ───────────────────────────────────────────────────────
+    - "VP of Growth"
+    - "VP Growth"
+    - "Head of Growth"
+    - "Director of Growth"
+    - "Growth Lead"
+    - "Head of Acquisition"
+    - "Head of Performance Marketing"
+    - "Head of Demand Gen"
+    - "Head of Demand Generation"
+    # ─── Sales / Revenue ──────────────────────────────────────────────
+    - "VP of Sales"
+    - "VP Sales"
+    - "Head of Sales"
+    - "Director of Sales"
+    - "CRO"
+    - "Chief Revenue Officer"
+    - "CSO"
+    - "Chief Sales Officer"
+    - "Head of Revenue"
+    - "Head of Revenue Operations"
+    - "VP of Business Development"
+    - "Head of Business Development"
+    # ─── GTM / Strategy ───────────────────────────────────────────────
+    - "Head of GTM"
+    - "VP of GTM"
+    - "Head of Go-To-Market"
+    - "Head of Partnerships"
+    - "VP of Partnerships"
+    # ─── Engineering / Product (retained) ─────────────────────────────
+    - "VP of Engineering"
+    - "Head of Product"
+    - "CTO"
+    - "Director of Engineering"
+    - "VP Product"
+    - "Chief Product Officer"
+    # ─── C-level catch-all ────────────────────────────────────────────
+    - "CEO"
+    - "COO"
+    - "CFO"
+    - "Founder"
+    - "Co-founder"
+    - "Co-Founder"
+    - "Managing Director"
+
+  keyword_match:
+    # Department / function keywords — matched in any title
+    - "marketing"
+    - "growth"
+    - "demand gen"
+    - "revenue"
+    - "sales"
+    - "business development"
+    - "brand"
+    - "digital"
+    - "acquisition"
+    - "GTM"
+    - "go-to-market"
+    - "partnerships"
+    - "content"
+    - "performance marketing"
+    - "engineering"
+    - "product"
+    - "infrastructure"
+    - "platform"
+    - "devops"
+    - "developer"
+
+  seniority_keywords:
+    - "VP"
+    - "SVP"
+    - "Senior VP"
+    - "Head"
+    - "Director"
+    - "Senior Director"
+    - "C-level"
+    - "Chief"
+    - "Founder"
+    - "Co-founder"
+    - "Principal"
+    - "Managing Director"
+    - "GM"
+    - "General Manager"
+    - "Partner"
+    - "President"
+    - "Owner"
+
+  exclude_keywords:
+    - "intern"
+    - "student"
+    - "consultant"
+    - "freelance"
+    - "recruiter"
+    - "talent"
+    - "HR"
+    - "human resources"
+    - "assistant"
+    - "coordinator"
+    - "trainee"
+
+industries:
+  include:
+    # Tech / SaaS
+    - "SaaS"
+    - "Fintech"
+    - "DevTools"
+    - "B2B Software"
+    - "Cloud Infrastructure"
+    - "Developer Tools"
+    - "Enterprise Software"
+    # Commerce / Consumer
+    - "E-commerce"
+    - "D2C"
+    - "Retail Technology"
+    - "Consumer Tech"
+    - "Marketplace"
+    # Verticals
+    - "EdTech"
+    - "HealthTech"
+    - "MarTech"
+    - "AdTech"
+    - "Media"
+    - "Logistics"
+    - "Manufacturing"
+    - "BFSI"
+    - "Insurance Technology"
+    - "Real Estate Technology"
+    - "HRTech"
+    - "LegalTech"
+    - "AgriTech"
+    - "CleanTech"
+  exclude:
+    - "Agency"
+    - "Staffing"
+    - "Recruitment"
+    - "Non-profit"
+
+company_size:
+  min_headcount: 50
+  max_headcount: 10000
+
+revenue:
+  min_annual_revenue_usd: 6000000       # ~50cr INR
+  max_annual_revenue_usd: 500000000
+
+funding:
+  stages:
+    - "Seed"
+    - "Series A"
+    - "Series B"
+    - "Series C"
+    - "Series D"
+    - "Series E"
+    - "Growth"
+    - "Private Equity"
+    - "IPO"
+  min_raised_usd: 500000
+  max_raised_usd: 500000000
+
+scoring_weights:
+  comment_intent: 45
+  title_match: 25
+  company_fit: 20
+  profile_completeness: 10

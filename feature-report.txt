@@ -1,0 +1,65 @@
+LinkedIn Lead Intelligence Tool — Feature Report
+===============================================
+
+**Product Overview**
+--------------------
+A web-based tool for scraping LinkedIn post commenters, enriching profiles, scoring leads with AI, generating outreach drafts, and integrating with HubSpot and Apollo.io. Includes monitoring, suppression, and a user-friendly web UI.
+
+**Core Features**
+-----------------
+1. **LinkedIn Lead Scanning & Enrichment**
+   - Scrapes commenters from LinkedIn posts (Playwright)
+   - Enriches profiles via Apollo.io
+   - ICP filtering via YAML config
+
+2. **AI-Powered Scoring & Intent Classification**
+   - Uses Anthropic Claude for comment intent (T1–T5)
+   - Weighted scoring model (0–100)
+
+3. **Automated Outreach Draft Generation**
+   - Personalized drafts for each lead (Claude)
+   - Four outreach angles: direct, topic, pain-point, campaign
+
+4. **Lead Management & Review**
+   - SQLite database for all leads, scores, drafts
+   - Web UI for review, editing, batch actions (CSV export, push to HubSpot)
+
+5. **CRM & Sequencing Integrations**
+   - HubSpot CRM sync
+   - Apollo.io sequencing
+   - Slack notifications for new leads
+
+6. **Ongoing Competitor Monitoring**
+   - Monitor competitor LinkedIn accounts
+   - Scheduled checks, auto-scan, Slack alerts
+
+7. **Suppression & Blacklist Management**
+   - Suppression list for profiles/domains
+   - Lead status history, cross-scan signal stacking
+
+8. **Web UI (React + Vite)**
+   - ScanPage, ResultsPage, LeadDetailPage, MonitorPage, SuppressionPage
+
+**Technical Stack & Architecture**
+----------------------------------
+- Backend: Node.js (Express), Playwright, Apollo.io, Anthropic Claude, HubSpot API, SQLite
+- Frontend: React, Vite, Tailwind CSS
+- Config: YAML-based ICP, campaign prompts
+- Jobs: Scan job, Monitor job
+
+**Integrations**
+----------------
+- LinkedIn (scraping)
+- Apollo.io (enrichment, sequencing)
+- HubSpot (CRM)
+- Slack (notifications)
+- Anthropic Claude (AI)
+
+**User Personas**
+-----------------
+- Growth/Marketing Operator (web UI)
+- Technical Founder (config, setup)
+
+**Summary**
+------------
+Automates finding, enriching, scoring, and contacting high-intent LinkedIn leads, with transparency, review, and CRM integration.
