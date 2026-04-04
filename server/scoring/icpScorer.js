@@ -16,6 +16,36 @@ function loadICP(profileName = 'icp') {
 }
 
 /**
+ * Load ICP configuration from the database by profile ID or name.
+ * Falls back to YAML file if DB profile is not found.
+ *
+ * @param {number|string} profileIdOrName - DB profile ID or name
+ * @returns {Object} Parsed ICP configuration
+ */
+function loadICPFromDb(profileIdOrName) {
+  try {
+    const icpQueries = require('../db/icpQueries');
+    let profile;
+
+    if (typeof profileIdOrName === 'number') {
+      profile = icpQueries.getICPProfileById(profileIdOrName);
+    } else {
+      profile = icpQueries.getICPProfileByName(profileIdOrName);
+    }
+
+    if (profile && profile.config) {
+      return profile.config;
+    }
+  } catch (err) {
+    console.warn(`[ICPScorer] DB lookup failed for "${profileIdOrName}", falling back to YAML:`, err.message);
+  }
+
+  // Fallback to YAML
+  const name = typeof profileIdOrName === 'number' ? 'icp' : profileIdOrName;
+  return loadICP(name);
+}
+
+/**
  * Score a lead against the ICP definition.
  *
  * Scoring breakdown (max 55 points):
@@ -221,4 +251,4 @@ function parseRevenue(revenue) {
   return isNaN(num) ? null : num;
 }
 
-module.exports = { scoreICP, loadICP, parseHeadcountRange, parseRevenue };
+module.exports = { scoreICP, loadICP, loadICPFromDb, parseHeadcountRange, parseRevenue };

@@ -5,6 +5,23 @@ import ResultsPage from './pages/ResultsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
 import MonitorPage from './pages/MonitorPage';
 import SuppressionPage from './pages/SuppressionPage';
+import DashboardPage from './pages/DashboardPage';
+import CampaignPage from './pages/CampaignPage';
+import PipelinePage from './pages/PipelinePage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import ToolsPage from './pages/ToolsPage';
+
+const NAV_ITEMS = [
+  { to: '/', label: 'Dashboard', end: true },
+  { to: '/scan', label: 'Scan' },
+  { to: '/results', label: 'Results' },
+  { to: '/campaigns', label: 'Campaigns' },
+  { to: '/pipeline', label: 'Pipeline' },
+  { to: '/monitor', label: 'Monitor' },
+  { to: '/analytics', label: 'Analytics' },
+  { to: '/tools', label: 'AI Tools' },
+  { to: '/suppress', label: 'Suppress' },
+];
 
 export default function App() {
   return (
@@ -21,56 +38,23 @@ export default function App() {
               </div>
               <span className="text-lg font-semibold text-slate-800">Lead Scanner</span>
             </div>
-            <div className="flex gap-1">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`
-                }
-              >
-                Scan
-              </NavLink>
-              <NavLink
-                to="/results"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`
-                }
-              >
-                Results
-              </NavLink>
-              <NavLink
-                to="/monitor"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`
-                }
-              >
-                Monitor
-              </NavLink>
-              <NavLink
-                to="/suppress"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`
-                }
-              >
-                Suppress
-              </NavLink>
+            <div className="flex gap-0.5 overflow-x-auto">
+              {NAV_ITEMS.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           </div>
         </div>
@@ -79,14 +63,18 @@ export default function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
-          <Route path="/" element={<ScanPage />} />
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/scan" element={<ScanPage />} />
           <Route path="/results" element={<ResultsPage />} />
           <Route path="/leads/:id" element={<LeadDetailPage />} />
+          <Route path="/campaigns" element={<CampaignPage />} />
+          <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/monitor" element={<MonitorPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/tools" element={<ToolsPage />} />
           <Route path="/suppress" element={<SuppressionPage />} />
         </Routes>
       </main>
     </div>
   );
 }
-

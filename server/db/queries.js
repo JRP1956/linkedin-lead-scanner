@@ -31,6 +31,12 @@ function initDatabase(dbPath) {
     { column: 'appearance_count', sql: 'ALTER TABLE leads ADD COLUMN appearance_count INTEGER DEFAULT 1' },
     { column: 'apollo_sequence_id', sql: 'ALTER TABLE leads ADD COLUMN apollo_sequence_id TEXT' },
     { column: 'apollo_sequenced_at', sql: 'ALTER TABLE leads ADD COLUMN apollo_sequenced_at TEXT' },
+    { column: 'phone', sql: 'ALTER TABLE leads ADD COLUMN phone TEXT' },
+    { column: 'linkedin_headline', sql: 'ALTER TABLE leads ADD COLUMN linkedin_headline TEXT' },
+    { column: 'linkedin_summary', sql: 'ALTER TABLE leads ADD COLUMN linkedin_summary TEXT' },
+    { column: 'linkedin_connections', sql: 'ALTER TABLE leads ADD COLUMN linkedin_connections INTEGER' },
+    { column: 'pipedrive_person_id', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_person_id TEXT' },
+    { column: 'pipedrive_pushed_at', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_pushed_at TEXT' },
   ];
 
   const existingColumns = db.prepare("PRAGMA table_info('leads')").all().map((c) => c.name);

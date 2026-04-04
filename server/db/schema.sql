@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS monitored_accounts (
   check_frequency_hours INTEGER DEFAULT 6,
   last_checked_at TEXT,
   last_post_id TEXT,
-  active INTEGER DEFAULT 1
+  active INTEGER DEFAULT 1,
+  monitor_type TEXT NOT NULL DEFAULT 'own'
 );
 
 -- Feature 1: Suppress / Blacklist List
@@ -77,4 +78,175 @@ CREATE TABLE IF NOT EXISTS lead_appearances (
   comment_text TEXT,
   seen_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(linkedin_url, post_url)
+);
+
+-- ─── Phase 1: Campaigns ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS campaigns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  icp_profile_id INTEGER,
+  description TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (icp_profile_id) REFERENCES icp_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_variants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  name TEXT NOT NULL DEFAULT 'Control',
+  message_template TEXT,
+  is_control INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS campaign_leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  lead_id INTEGER NOT NULL,
+  variant_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'pending',
+  assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+  sent_at TEXT,
+  replied_at TEXT,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (lead_id) REFERENCES leads(id),
+  FOREIGN KEY (variant_id) REFERENCES campaign_variants(id),
+  UNIQUE(campaign_id, lead_id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  variant_id INTEGER,
+  sent INTEGER DEFAULT 0,
+  replied INTEGER DEFAULT 0,
+  meetings INTEGER DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (variant_id) REFERENCES campaign_variants(id)
+);
+
+-- ─── Phase 1: Webhooks ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  event_types TEXT NOT NULL,
+  active INTEGER DEFAULT 1,
+  secret TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ─── Phase 1: ICP Profiles (DB-backed) ──────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS icp_profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  config_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ─── Phase 2: Signal Detection ──────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS detected_signals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  lead_id INTEGER,
+  linkedin_url TEXT,
+  company_domain TEXT,
+  data_json TEXT,
+  detected_at TEXT NOT NULL DEFAULT (datetime('now')),
+  processed INTEGER DEFAULT 0,
+  FOREIGN KEY (lead_id) REFERENCES leads(id)
+);
+
+CREATE TABLE IF NOT EXISTS keyword_monitors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  keyword TEXT NOT NULL,
+  active INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS company_headcount_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_domain TEXT NOT NULL,
+  company_name TEXT,
+  headcount INTEGER,
+  checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ─── Phase 3: Multi-Sender ─────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS linkedin_senders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  browser_profile_path TEXT,
+  daily_limit INTEGER DEFAULT 50,
+  sent_today INTEGER DEFAULT 0,
+  last_reset_date TEXT,
+  active INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ─── Phase 3: Follow-up Sequences ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS sequence_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  step_number INTEGER NOT NULL,
+  delay_days INTEGER NOT NULL DEFAULT 3,
+  message_template TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  UNIQUE(campaign_id, step_number)
+);
+
+CREATE TABLE IF NOT EXISTS sequence_tracking (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_lead_id INTEGER NOT NULL,
+  step_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  scheduled_at TEXT,
+  sent_at TEXT,
+  message_content TEXT,
+  FOREIGN KEY (campaign_lead_id) REFERENCES campaign_leads(id) ON DELETE CASCADE
+);
+
+-- ─── Phase 4: Meetings & Conversion Tracking ───────────────────────────────
+
+CREATE TABLE IF NOT EXISTS meetings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lead_id INTEGER NOT NULL,
+  campaign_id INTEGER,
+  signal_type TEXT,
+  booked_at TEXT NOT NULL DEFAULT (datetime('now')),
+  notes TEXT,
+  FOREIGN KEY (lead_id) REFERENCES leads(id),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+);
+
+-- ─── Phase 5: Organizations & Users ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name TEXT,
+  org_id INTEGER,
+  role TEXT NOT NULL DEFAULT 'member',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (org_id) REFERENCES organizations(id)
 );

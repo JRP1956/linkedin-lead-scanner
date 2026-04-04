@@ -90,7 +90,7 @@ async function enrichPerson({ fullName, linkedinUrl, companyDomain }) {
     linkedin_url: linkedinUrl,
     domain: domain,
     reveal_personal_emails: false,
-    reveal_phone_number: false,
+    reveal_phone_number: true,
   };
 
   const timestamp = new Date().toISOString();
@@ -149,6 +149,7 @@ async function enrichPerson({ fullName, linkedinUrl, companyDomain }) {
         lastName: person.last_name || null,
         title: person.title || null,
         email: person.email || null,
+        phone: person.phone_numbers?.[0]?.sanitized_number || null,
         company: person.organization?.name || null,
         companyDomain: person.organization?.primary_domain || null,
         headcountRange: toHeadcountRange(person.organization?.estimated_num_employees),
