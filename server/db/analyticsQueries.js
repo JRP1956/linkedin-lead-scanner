@@ -151,41 +151,10 @@ function getDashboardSummary() {
 
 // ─── Meeting Tracking ───────────────────────────────────────────────────────
 
-function recordMeeting({ leadId, campaignId, signalType, notes }) {
-  const stmt = getDb().prepare(`
-    INSERT INTO meetings (lead_id, campaign_id, signal_type, notes)
-    VALUES (?, ?, ?, ?)
-  `);
-  return stmt.run(leadId, campaignId || null, signalType || null, notes || null);
-}
-
-function getMeetings({ campaignId, limit = 50 } = {}) {
-  let sql = `
-    SELECT m.*, l.name as lead_name, l.company as lead_company, l.title as lead_title,
-           c.name as campaign_name
-    FROM meetings m
-    JOIN leads l ON m.lead_id = l.id
-    LEFT JOIN campaigns c ON m.campaign_id = c.id
-  `;
-  const params = [];
-
-  if (campaignId) {
-    sql += ' WHERE m.campaign_id = ?';
-    params.push(campaignId);
-  }
-
-  sql += ' ORDER BY m.booked_at DESC LIMIT ?';
-  params.push(limit);
-
-  return getDb().prepare(sql).all(...params);
-}
-
 module.exports = {
   getCampaignAnalytics,
   getSignalAnalytics,
   getReplyRateAnalytics,
   getPipelineAnalytics,
   getDashboardSummary,
-  recordMeeting,
-  getMeetings,
 };

@@ -32,11 +32,6 @@ function initDatabase(dbPath) {
     { column: 'apollo_sequence_id', sql: 'ALTER TABLE leads ADD COLUMN apollo_sequence_id TEXT' },
     { column: 'apollo_sequenced_at', sql: 'ALTER TABLE leads ADD COLUMN apollo_sequenced_at TEXT' },
     { column: 'phone', sql: 'ALTER TABLE leads ADD COLUMN phone TEXT' },
-    { column: 'linkedin_headline', sql: 'ALTER TABLE leads ADD COLUMN linkedin_headline TEXT' },
-    { column: 'linkedin_summary', sql: 'ALTER TABLE leads ADD COLUMN linkedin_summary TEXT' },
-    { column: 'linkedin_connections', sql: 'ALTER TABLE leads ADD COLUMN linkedin_connections INTEGER' },
-    { column: 'pipedrive_person_id', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_person_id TEXT' },
-    { column: 'pipedrive_pushed_at', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_pushed_at TEXT' },
     { column: 'engagement_type', sql: "ALTER TABLE leads ADD COLUMN engagement_type TEXT NOT NULL DEFAULT 'comment'" },
   ];
 
@@ -71,11 +66,6 @@ function insertScannedPost({ postUrl, commenterCount, enrichedCount }) {
       enriched_count = excluded.enriched_count
   `);
   return stmt.run(postUrl, commenterCount, enrichedCount);
-}
-
-function getScannedPost(postUrl) {
-  const stmt = getDb().prepare('SELECT * FROM scanned_posts WHERE post_url = ?');
-  return stmt.get(postUrl);
 }
 
 function getAllScannedPosts() {
@@ -275,17 +265,11 @@ function updateMonitoredAccountLastCheck(id, lastPostId) {
   return stmt.run(lastPostId, id);
 }
 
-function toggleMonitoredAccount(id, active) {
-  const stmt = getDb().prepare('UPDATE monitored_accounts SET active = ? WHERE id = ?');
-  return stmt.run(active ? 1 : 0, id);
-}
-
 module.exports = {
   initDatabase,
   getDb,
   // Scanned Posts
   insertScannedPost,
-  getScannedPost,
   getAllScannedPosts,
   // Leads
   upsertLead,
@@ -302,5 +286,4 @@ module.exports = {
   insertMonitoredAccount,
   deleteMonitoredAccount,
   updateMonitoredAccountLastCheck,
-  toggleMonitoredAccount,
 };

@@ -229,10 +229,9 @@ export default function AnalyticsPage() {
             <p className="text-slate-500 text-sm">Usage data unavailable.</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   ['Scans today', `${usage.today.scans} / ${usage.today.scanLimit || '∞'}`],
-                  ['Emails today', `${usage.today.emails} / ${usage.today.emailLimit || '∞'}`],
                   ['Spend (30 days)', `$${usage.byDay.reduce((sum, d) => sum + d.cost_usd, 0).toFixed(2)}`],
                 ].map(([label, value]) => (
                   <div key={label} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
@@ -245,7 +244,7 @@ export default function AnalyticsPage() {
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-slate-800 mb-1">Cost per Scan</h2>
                 <p className="text-xs text-slate-500 mb-4">
-                  Claude cost is exact. Apollo/Proxycurl are $0 unless you set APOLLO_COST_PER_CREDIT / PROXYCURL_COST_PER_CALL.
+                  Claude cost is exact. Apollo is $0 unless you set APOLLO_COST_PER_CREDIT.
                 </p>
                 {usage.byScan.length === 0 ? (
                   <p className="text-slate-500 text-sm">No scans in the last 30 days</p>

@@ -78,3 +78,23 @@ test('starting follow-ups twice does not duplicate the sequence', () => {
     WHERE cl.campaign_id = ?`).get(other.id).n;
   assert.equal(count, 8); // 2 leads × 4 default steps
 });
+
+test('they replied stops the rest of the sequence', async () => {
+  const graceId = queries.getLeadByLinkedinUrl('https://www.linkedin.com/in/grace').id;
+  const graceSteps = () => db.prepare(`
+    SELECT st.status FROM sequence_tracking st JOIN campaign_leads cl ON st.campaign_lead_id = cl.id
+    WHERE cl.lead_id = ? ORDER BY st.step_number`).all(graceId).map((r) => r.status);
+
+  makeAllDue();
+  await engine.processDueSteps();
+  const [draft] = engine.getReadyDrafts(); // Ada already replied, so only Grace's draft
+  assert.equal(draft.lead_id, graceId);
+
+  engine.markReplied(draft.id);
+  assert.deepEqual(graceSteps(), ['cancelled', 'cancelled', 'cancelled', 'cancelled']);
+  assert.equal(queries.getLeadById(graceId).lead_status, 'replied');
+  assert.equal(engine.getReadyDrafts().length, 0);
+  makeAllDue();
+  assert.deepEqual(await engine.processDueSteps(), { drafted: 0, skipped: 0 });
+  assert.throws(() => engine.markReplied(9999), { code: 'NOT_FOUND' });
+});

@@ -1,12 +1,8 @@
 const express = require('express');
 const queries = require('../db/queries');
-const statusQueries = require('../db/statusQueries');
 const suppressionQueries = require('../db/suppressionQueries');
-const { assertUnderDailyCap, dailyLimit, recordUsage } = require('../db/usageQueries');
 const { createOrUpdateContact } = require('../integrations/hubspotClient');
 const { listSequences, addContactToSequence } = require('../integrations/apolloSequencer');
-const { createOrUpdatePerson: pipedriveCreatePerson } = require('../integrations/pipedriveClient');
-const { sendEmail } = require('../integrations/emailSender');
 
 const router = express.Router();
 
@@ -189,87 +185,6 @@ router.post('/leads/push-apollo-batch', async (req, res) => {
   }
 
   res.json({ pushed, failed, errors });
-});
-
-// ─── Pipedrive Routes (G2) ──────────────────────────────────────────────────
-
-router.post('/leads/:id/push-pipedrive', async (req, res) => {
-  try {
-    const lead = queries.getLeadById(parseInt(req.params.id, 10));
-    if (!lead) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'Lead not found' });
-    }
-
-    const person = await pipedriveCreatePerson(lead);
-
-    // Update lead with Pipedrive ID
-    queries.getDb().prepare(
-      "UPDATE leads SET pipedrive_person_id = ?, pipedrive_pushed_at = datetime('now') WHERE id = ?"
-    ).run(String(person.id), lead.id);
-
-    res.json({ pipedrivePersonId: person.id, success: true });
-  } catch (err) {
-    res.status(err.code === 'PIPEDRIVE_NOT_CONFIGURED' ? 400 : 500).json({
-      error: err.code || 'PIPEDRIVE_ERROR',
-      message: err.message,
-      success: false,
-    });
-  }
-});
-
-router.post('/leads/push-pipedrive-batch', async (req, res) => {
-  const { leadIds } = req.body;
-  if (!leadIds || !Array.isArray(leadIds)) {
-    return res.status(400).json({ error: 'INVALID_LEAD_IDS', message: 'leadIds must be an array' });
-  }
-
-  let pushed = 0;
-  let failed = 0;
-  const errors = [];
-
-  for (const id of leadIds) {
-    const lead = queries.getLeadById(id);
-    if (!lead) { failed++; continue; }
-
-    try {
-      const person = await pipedriveCreatePerson(lead);
-      queries.getDb().prepare(
-        "UPDATE leads SET pipedrive_person_id = ?, pipedrive_pushed_at = datetime('now') WHERE id = ?"
-      ).run(String(person.id), lead.id);
-      pushed++;
-    } catch (err) {
-      failed++;
-      errors.push({ leadId: id, error: err.message });
-    }
-  }
-
-  res.json({ pushed, failed, errors });
-});
-
-// ─── Email Routes (D5) ──────────────────────────────────────────────────────
-
-router.post('/leads/:id/send-email', async (req, res) => {
-  const { subject, text, html } = req.body;
-  const lead = queries.getLeadById(parseInt(req.params.id, 10));
-  if (!lead) {
-    return res.status(404).json({ error: 'NOT_FOUND', message: 'Lead not found' });
-  }
-  if (!lead.email) {
-    return res.status(400).json({ error: 'NO_EMAIL', message: 'Lead has no email address' });
-  }
-  try {
-    assertUnderDailyCap('email', dailyLimit('MAX_EMAILS_PER_DAY', 50));
-    const result = await sendEmail({ to: lead.email, subject, text, html });
-    recordUsage({ kind: 'email', detail: lead.email });
-    statusQueries.updateLeadStatus(lead.id, 'contacted');
-    res.json(result);
-  } catch (err) {
-    const status = { SMTP_NOT_CONFIGURED: 400, DAILY_CAP_REACHED: 429 }[err.code] || 500;
-    res.status(status).json({
-      error: err.code || 'EMAIL_ERROR',
-      message: err.message,
-    });
-  }
 });
 
 module.exports = router;

@@ -159,6 +159,5 @@ async function addContactToSequence({ email, firstName, lastName, sequenceId }) 
 module.exports = {
   listSequences,
   addContactToSequence,
-  APOLLO_SEQUENCE_ERROR,
   APOLLO_SEQUENCE_AUTH_FAILED,
 };

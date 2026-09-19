@@ -235,6 +235,7 @@ function getReadyDrafts() {
     JOIN campaigns c ON cl.campaign_id = c.id
     JOIN leads l ON cl.lead_id = l.id
     WHERE st.status = 'ready'
+      AND l.lead_status NOT IN ('replied', 'meeting_booked', 'converted', 'dead')
     ORDER BY st.scheduled_at ASC
   `).all();
 }
@@ -296,17 +297,43 @@ function skipStep(id) {
   rescheduleLaterSteps(step);
 }
 
+/**
+ * The lead replied (you saw it on LinkedIn): stop their sequence in this campaign.
+ * Takes a step id so it works straight from the review queue.
+ */
+function markReplied(id) {
+  const step = getDb().prepare(`
+    SELECT st.campaign_lead_id, cl.campaign_id, cl.lead_id,
+           cl.status AS campaign_lead_status, l.lead_status
+    FROM sequence_tracking st
+    JOIN campaign_leads cl ON st.campaign_lead_id = cl.id
+    JOIN leads l ON cl.lead_id = l.id
+    WHERE st.id = ?
+  `).get(id);
+  if (!step) throw Object.assign(new Error('Follow-up not found'), { code: 'NOT_FOUND' });
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE sequence_tracking SET status = 'cancelled'
+      WHERE campaign_lead_id = ? AND status IN ('pending', 'ready')
+    `).run(step.campaign_lead_id);
+    // Only advance; never downgrade 'meeting_booked' / 'converted'
+    if (['pending', 'sent'].includes(step.campaign_lead_status)) {
+      campaignQueries.updateCampaignLeadStatus(step.campaign_id, step.lead_id, 'replied');
+    }
+    if (['new', 'contacted'].includes(step.lead_status)) {
+      statusQueries.updateLeadStatus(step.lead_id, 'replied');
+    }
+  })();
+}
+
 module.exports = {
-  initializeSequence,
-  getSequenceSteps,
   scheduleSequenceForLeads,
   startFollowUps,
-  getDueSequenceSteps,
-  generateFollowUpMessage,
   processDueSteps,
   getReadyDrafts,
   updateDraftMessage,
   markStepSent,
   skipStep,
-  DEFAULT_STEPS,
+  markReplied,
 };

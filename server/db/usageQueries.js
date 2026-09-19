@@ -2,7 +2,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 const { getDb } = require('./queries');
 
 /**
- * Usage tracking: one row per billable/risky action (scan, email, claude, apollo, proxycurl).
+ * Usage tracking: one row per billable/risky action (scan, claude, apollo).
  * Powers daily caps and per-scan cost reporting.
  *
  * scanContext lets deep callees (Claude, Apollo) tag usage with the scan's postUrl
@@ -51,8 +51,6 @@ function getUsageSummary({ days = 30 } = {}) {
     today: {
       scans: countToday('scan'),
       scanLimit: dailyLimit('MAX_SCANS_PER_DAY', 10),
-      emails: countToday('email'),
-      emailLimit: dailyLimit('MAX_EMAILS_PER_DAY', 50),
     },
     byDay: db.prepare(`
       SELECT date(created_at) AS day, kind, SUM(units) AS units, ROUND(SUM(cost_usd), 4) AS cost_usd

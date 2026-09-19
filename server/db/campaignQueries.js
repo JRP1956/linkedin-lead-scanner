@@ -77,24 +77,6 @@ function addVariant({ campaignId, name, messageTemplate, isControl }) {
   return getDb().prepare('SELECT * FROM campaign_variants WHERE id = ?').get(result.lastInsertRowid);
 }
 
-function updateVariant(id, { name, messageTemplate }) {
-  const fields = [];
-  const values = [];
-
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (messageTemplate !== undefined) { fields.push('message_template = ?'); values.push(messageTemplate); }
-
-  if (fields.length === 0) return getDb().prepare('SELECT * FROM campaign_variants WHERE id = ?').get(id);
-
-  values.push(id);
-  getDb().prepare(`UPDATE campaign_variants SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  return getDb().prepare('SELECT * FROM campaign_variants WHERE id = ?').get(id);
-}
-
-function deleteVariant(id) {
-  return getDb().prepare('DELETE FROM campaign_variants WHERE id = ?').run(id);
-}
-
 // ─── Campaign Leads ─────────────────────────────────────────────────────────
 
 function assignLeadsToCampaign(campaignId, leadIds, variantId) {
@@ -149,12 +131,6 @@ function updateCampaignLeadStatus(campaignId, leadId, status) {
   ).run(...values, campaignId, leadId);
 }
 
-function removeCampaignLead(campaignId, leadId) {
-  return getDb().prepare(
-    'DELETE FROM campaign_leads WHERE campaign_id = ? AND lead_id = ?'
-  ).run(campaignId, leadId);
-}
-
 // ─── Campaign Metrics ───────────────────────────────────────────────────────
 
 function getCampaignMetrics(campaignId) {
@@ -197,11 +173,8 @@ module.exports = {
   updateCampaign,
   deleteCampaign,
   addVariant,
-  updateVariant,
-  deleteVariant,
   assignLeadsToCampaign,
   getCampaignLeads,
   updateCampaignLeadStatus,
-  removeCampaignLead,
   getCampaignMetrics,
 };

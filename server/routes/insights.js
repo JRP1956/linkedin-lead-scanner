@@ -1,7 +1,5 @@
 const express = require('express');
-const statusQueries = require('../db/statusQueries');
 const analyticsQueries = require('../db/analyticsQueries');
-const signalDetectionQueries = require('../db/signalDetectionQueries');
 const { getUsageSummary } = require('../db/usageQueries');
 const { analyzeMessage } = require('../ai/messageAnalyzer');
 const { generateContent } = require('../ai/contentGenerator');
@@ -48,46 +46,6 @@ router.get('/analytics/pipeline', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'ANALYTICS_FAILED', message: err.message });
   }
-});
-
-// ─── Meeting Routes (E5) ────────────────────────────────────────────────────
-
-router.post('/meetings', (req, res) => {
-  const { leadId, campaignId, signalType, notes } = req.body;
-  if (!leadId) {
-    return res.status(400).json({ error: 'MISSING_LEAD_ID', message: 'leadId is required' });
-  }
-  try {
-    analyticsQueries.recordMeeting({ leadId, campaignId, signalType, notes });
-    statusQueries.updateLeadStatus(leadId, 'meeting_booked');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
-  }
-});
-
-router.get('/meetings', (req, res) => {
-  const { campaignId, limit } = req.query;
-  res.json(analyticsQueries.getMeetings({ campaignId: campaignId ? parseInt(campaignId) : undefined, limit: limit ? parseInt(limit) : undefined }));
-});
-
-// ─── Signal Detection Routes ────────────────────────────────────────────────
-
-router.get('/signals', (req, res) => {
-  const { type, limit } = req.query;
-  if (type) {
-    res.json(signalDetectionQueries.getSignalsByType(type, { limit: limit ? parseInt(limit) : 50 }));
-  } else {
-    res.json(signalDetectionQueries.getRecentSignals({ limit: limit ? parseInt(limit) : 100 }));
-  }
-});
-
-router.get('/signals/stats', (req, res) => {
-  res.json(signalDetectionQueries.getSignalStats());
-});
-
-router.get('/leads/:id/signals', (req, res) => {
-  res.json(signalDetectionQueries.getSignalsByLead(parseInt(req.params.id, 10)));
 });
 
 // ─── AI Tools Routes (H1, H2, H3) ──────────────────────────────────────────

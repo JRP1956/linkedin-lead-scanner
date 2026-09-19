@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getFollowUps, updateFollowUp, markFollowUpSent, skipFollowUp } from '../api/client';
+import { getFollowUps, updateFollowUp, markFollowUpSent, skipFollowUp, markFollowUpReplied } from '../api/client';
 
 /**
  * FollowUpsPage — review queue for follow-up messages drafted by the sequence engine.
@@ -127,6 +127,11 @@ function FollowUpCard({ draft, onDone }) {
           </a>
         )}
         <div className="flex-1" />
+        <button onClick={() => act(markFollowUpReplied)} disabled={busy}
+          title="Stops the rest of this lead's follow-ups"
+          className="px-3 py-1.5 text-xs font-medium text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-50">
+          They replied
+        </button>
         <button onClick={() => act(skipFollowUp)} disabled={busy}
           className="px-3 py-1.5 text-xs font-medium text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-50">
           Skip this step

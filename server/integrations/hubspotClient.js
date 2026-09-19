@@ -185,6 +185,5 @@ async function createOrUpdateContact(lead) {
 
 module.exports = {
   createOrUpdateContact,
-  searchContactByEmail,
   logCustomPropertyChecklist,
 };

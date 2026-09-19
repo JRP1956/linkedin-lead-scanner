@@ -56,4 +56,4 @@ function objectSchema(properties) {
   return { type: 'object', properties, required: Object.keys(properties), additionalProperties: false };
 }
 
-module.exports = { ask, objectSchema, estimateCost, MODEL };
+module.exports = { ask, objectSchema, estimateCost };

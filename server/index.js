@@ -1,4 +1,8 @@
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+try {
+  process.loadEnvFile(require('path').join(__dirname, '..', '.env'));
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err; // no .env is fine; env vars may come from the shell
+}
 
 const express = require('express');
 const cors = require('cors');

@@ -12,7 +12,7 @@ test('daily cap blocks once the limit is reached; 0 disables it', () => {
   assert.equal(countToday('scan'), 2);
   assert.throws(() => assertUnderDailyCap('scan', 2), { code: 'DAILY_CAP_REACHED' });
   assertUnderDailyCap('scan', 0);
-  assertUnderDailyCap('email', 2); // other kinds are counted separately
+  assertUnderDailyCap('apollo', 2); // other kinds are counted separately
 });
 
 test('usage inside a scan context is attributed to that post', async () => {

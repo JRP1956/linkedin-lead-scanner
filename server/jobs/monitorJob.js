@@ -208,31 +208,10 @@ async function trackCompetitorEngagement(page, postUrl, account) {
 
     if (existingLeads.length > 0) {
       console.log(`[Monitor/Competitor] 🎯 ${existingLeads.length} existing leads engaging with competitor ${account.label}`);
-      
-      const { dispatchEvent } = require('../integrations/webhookDispatcher');
-      for (const lead of existingLeads) {
-        await dispatchEvent('signal.detected', {
-          type: 'competitor_engagement',
-          leadId: lead.id,
-          leadName: lead.name,
-          competitorAccount: account.label,
-          postUrl,
-        });
-      }
     }
   } catch (err) {
     console.error(`[Monitor/Competitor] Error tracking engagement:`, err.message);
   }
 }
 
-/**
- * Stop the monitor cron job.
- */
-function stopMonitorJob() {
-  if (cronJob) {
-    cronJob.stop();
-    console.log('[Monitor] Job stopped');
-  }
-}
-
-module.exports = { startMonitorJob, stopMonitorJob, checkAccount };
+module.exports = { startMonitorJob };

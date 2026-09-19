@@ -1,14 +1,9 @@
 const express = require('express');
-const multer = require('multer');
 const queries = require('../db/queries');
 const statusQueries = require('../db/statusQueries');
 const signalQueries = require('../db/signalQueries');
-const { importCSV } = require('../import/csvImporter');
 
 const router = express.Router();
-
-// Multer config for CSV upload
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 /**
  * GET /api/leads
@@ -95,17 +90,6 @@ router.get('/leads/export-csv', (req, res) => {
 });
 
 /**
- * GET /api/leads/multi-signal
- * Get leads that appeared in multiple posts.
- * (Must be defined before /api/leads/:id to avoid route conflict)
- */
-router.get('/leads/multi-signal', (req, res) => {
-  const minAppearances = parseInt(req.query.min, 10) || 2;
-  const leads = signalQueries.getMultiSignalLeads(minAppearances);
-  res.json(leads);
-});
-
-/**
  * GET /api/leads/:id
  * Get a single lead by ID.
  */
@@ -155,40 +139,12 @@ router.patch('/leads/:id/status', (req, res) => {
 });
 
 /**
- * POST /api/leads/batch-status
- * Batch update status for multiple leads.
- */
-router.post('/leads/batch-status', (req, res) => {
-  const { leadIds, status } = req.body;
-
-  if (!leadIds || !Array.isArray(leadIds)) {
-    return res.status(400).json({ error: 'INVALID_LEAD_IDS', message: 'leadIds must be an array' });
-  }
-
-  try {
-    const result = statusQueries.batchUpdateStatus(leadIds, status);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: 'BATCH_STATUS_FAILED', message: err.message });
-  }
-});
-
-/**
  * GET /api/leads/:id/history
  * Get status change history for a lead.
  */
 router.get('/leads/:id/history', (req, res) => {
   const history = statusQueries.getLeadStatusHistory(parseInt(req.params.id, 10));
   res.json(history);
-});
-
-/**
- * GET /api/stats/funnel
- * Get conversion funnel stats.
- */
-router.get('/stats/funnel', (req, res) => {
-  const funnel = statusQueries.getStatusFunnel();
-  res.json(funnel);
 });
 
 // ─── Signal Stacking Routes ──────────────────────────────────────────────────
@@ -204,31 +160,6 @@ router.get('/leads/:id/appearances', (req, res) => {
   }
   const appearances = signalQueries.getAppearanceHistory(lead.linkedin_url);
   res.json(appearances);
-});
-
-// (multi-signal moved above /api/leads/:id for correct route matching)
-
-// ─── CSV Import Route ───────────────────────────────────────────────────────
-
-/**
- * POST /api/leads/import-csv
- * Import leads from a CSV file upload.
- */
-router.post('/leads/import-csv', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'NO_FILE', message: 'CSV file is required' });
-  }
-
-  try {
-    const csvContent = req.file.buffer.toString('utf-8');
-    const columnMap = req.body.columnMap ? JSON.parse(req.body.columnMap) : {};
-    const postUrl = req.body.postUrl || `csv-import-${Date.now()}`;
-
-    const result = importCSV(csvContent, { columnMap, postUrl });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: 'IMPORT_FAILED', message: err.message });
-  }
 });
 
 module.exports = router;

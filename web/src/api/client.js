@@ -228,24 +228,8 @@ export async function updateLeadStatus(id, status) {
   return res.json();
 }
 
-export async function batchUpdateStatus(leadIds, status) {
-  const res = await fetch(`${API_BASE}/leads/batch-status`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadIds, status }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
 export async function getLeadHistory(id) {
   const res = await fetch(`${API_BASE}/leads/${id}/history`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function getFunnelStats() {
-  const res = await fetch(`${API_BASE}/stats/funnel`);
   if (!res.ok) throw new Error((await res.json()).message);
   return res.json();
 }
@@ -254,12 +238,6 @@ export async function getFunnelStats() {
 
 export async function getLeadAppearances(id) {
   const res = await fetch(`${API_BASE}/leads/${id}/appearances`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function getMultiSignalLeads(min = 2) {
-  const res = await fetch(`${API_BASE}/leads/multi-signal?min=${min}`);
   if (!res.ok) throw new Error((await res.json()).message);
   return res.json();
 }
@@ -336,28 +314,6 @@ export async function addCampaignVariant(campaignId, { name, messageTemplate, is
   return res.json();
 }
 
-export async function assignLeadsToCampaign(campaignId, leadIds, variantId) {
-  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/leads`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadIds, variantId }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function getCampaignLeads(campaignId) {
-  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/leads`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function getCampaignMetrics(campaignId) {
-  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/metrics`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
 // ─── Analytics (Phase 4) ────────────────────────────────────────────────────
 
 export async function getDashboardData() {
@@ -392,63 +348,12 @@ export async function getPipelineAnalytics() {
 
 // ─── ICP Profiles (Phase 1) ─────────────────────────────────────────────────
 
-export async function getICPProfilesDB() {
-  const res = await fetch(`${API_BASE}/icp`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function createICPProfile({ name, config }) {
-  const res = await fetch(`${API_BASE}/icp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, config }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
 export async function generateICPProfile({ productDescription, targetMarket, existingCustomers }) {
   const res = await fetch(`${API_BASE}/icp/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ productDescription, targetMarket, existingCustomers }),
   });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-// ─── CSV Import (Phase 1) ───────────────────────────────────────────────────
-
-export async function importCSV(file, postUrl) {
-  const formData = new FormData();
-  formData.append('file', file);
-  if (postUrl) formData.append('postUrl', postUrl);
-  const res = await fetch(`${API_BASE}/leads/import-csv`, { method: 'POST', body: formData });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-// ─── Webhooks (Phase 1) ─────────────────────────────────────────────────────
-
-export async function getWebhooks() {
-  const res = await fetch(`${API_BASE}/webhooks`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function createWebhook({ url, eventTypes, secret }) {
-  const res = await fetch(`${API_BASE}/webhooks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, eventTypes, secret }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function deleteWebhook(id) {
-  const res = await fetch(`${API_BASE}/webhooks/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error((await res.json()).message);
   return res.json();
 }
@@ -470,53 +375,6 @@ export async function generateContent({ topic, tone, audience, format }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic, tone, audience, format }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-// ─── Pipedrive (Phase 5) ────────────────────────────────────────────────────
-
-export async function pushToPipedrive(id) {
-  const res = await fetch(`${API_BASE}/leads/${id}/push-pipedrive`, { method: 'POST' });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function pushBatchToPipedrive(leadIds) {
-  const res = await fetch(`${API_BASE}/leads/push-pipedrive-batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadIds }),
-  });
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-// ─── Signals (Phase 2) ──────────────────────────────────────────────────────
-
-export async function getSignals({ type, limit } = {}) {
-  const params = new URLSearchParams();
-  if (type) params.set('type', type);
-  if (limit) params.set('limit', limit);
-  const res = await fetch(`${API_BASE}/signals?${params}`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-export async function getLeadSignals(id) {
-  const res = await fetch(`${API_BASE}/leads/${id}/signals`);
-  if (!res.ok) throw new Error((await res.json()).message);
-  return res.json();
-}
-
-// ─── Meetings (Phase 4) ─────────────────────────────────────────────────────
-
-export async function recordMeeting({ leadId, campaignId, signalType, notes }) {
-  const res = await fetch(`${API_BASE}/meetings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadId, campaignId, signalType, notes }),
   });
   if (!res.ok) throw new Error((await res.json()).message);
   return res.json();
@@ -551,6 +409,12 @@ export async function updateFollowUp(id, message) {
 export async function markFollowUpSent(id) {
   const res = await fetch(`${API_BASE}/follow-ups/${id}/sent`, { method: 'POST' });
   if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+export async function markFollowUpReplied(id) {
+  const res = await fetch(`${API_BASE}/follow-ups/${id}/replied`, { method: 'POST' });
+  if (!res.ok) throw new Error((await res.json()).message || 'Failed to mark replied');
   return res.json();
 }
 

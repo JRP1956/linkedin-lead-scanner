@@ -1,6 +1,6 @@
 # LinkedIn Lead Scanner
 
-An AI-powered, multi-channel lead generation platform that scrapes LinkedIn post engagers, enriches profiles via Apollo & Proxycurl, scores leads against your Ideal Customer Profile using Claude AI, detects buying signals (job changes, funding rounds, hiring spikes), runs multi-step outreach sequences, and syncs qualified leads to HubSpot, Pipedrive, and Apollo — all from a single dashboard.
+An AI-powered, multi-channel lead generation platform that scrapes LinkedIn post engagers, enriches profiles via Apollo, scores leads against your Ideal Customer Profile using Claude AI, detects buying signals (job changes, funding rounds, hiring spikes), runs multi-step outreach sequences, and syncs qualified leads to HubSpot and Apollo — all from a single dashboard.
 
 ---
 
@@ -25,10 +25,7 @@ An AI-powered, multi-channel lead generation platform that scrapes LinkedIn post
   - [CRM Integrations](#crm-integrations)
   - [Suppression / Blacklist](#suppression--blacklist)
   - [Cross-Scan Signal Stacking](#cross-scan-signal-stacking)
-  - [CSV Import / Export](#csv-import--export)
-  - [Webhook System](#webhook-system)
   - [Automated Monitoring](#automated-monitoring)
-  - [Multi-Sender Support](#multi-sender-support)
   - [Authentication & Multi-Team](#authentication--multi-team)
 - [API Reference](#api-reference)
 - [Frontend Pages](#frontend-pages)
@@ -56,7 +53,6 @@ An AI-powered, multi-channel lead generation platform that scrapes LinkedIn post
                                 ▼
                        ┌──────────────────┐
                        │    Enrich        │  Apollo API → title, company, email, revenue, industry, phone
-                       └────────┬─────────┘  Proxycurl (optional) → headline, summary, connections
                                 │
                                 ▼
                        ┌──────────────────┐
@@ -83,30 +79,29 @@ An AI-powered, multi-channel lead generation platform that scrapes LinkedIn post
                        │     Save         │  SQLite — leads, appearances, status history, signals
                        └────────┬─────────┘
                                 │
-              ┌─────────────────┼─────────────────┐
-              ▼                 ▼                  ▼
-         ┌─────────┐    ┌───────────┐     ┌────────────┐
-         │ HubSpot │    │ Pipedrive │     │   Apollo   │
-         └─────────┘    └───────────┘     │ Sequences  │
-                                          └────────────┘
+                  ┌─────────────┴─────────────┐
+                  ▼                           ▼
+             ┌─────────┐              ┌────────────┐
+             │ HubSpot │              │   Apollo   │
+             └─────────┘              │ Sequences  │
+                                      └────────────┘
 ```
 
 ### Background Signal Detection (runs on cron)
 
 ```
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ Job Change   │  │   Funding    │  │   Hiring     │  │   Keyword    │
-│  Detector    │  │  Detector    │  │   Spikes     │  │   Monitor    │
-│  (Apollo)    │  │ (Crunchbase/ │  │  (Apollo)    │  │ (Google News)│
-│              │  │  Google News)│  │              │  │              │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │                  │
-       └─────────────────┴─────────────────┴──────────────────┘
-                                  │
-                                  ▼
-                         ┌────────────────┐
-                         │ Signal Engine  │ → Webhooks → Slack → Lead Score Boost
-                         └────────────────┘
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ Job Change   │  │   Funding    │  │   Hiring     │
+│  Detector    │  │  Detector    │  │   Spikes     │
+│  (Apollo)    │  │ (Crunchbase/ │  │  (Apollo)    │
+│              │  │  Google News)│  │              │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       └─────────────────┼─────────────────┘
+                         ▼
+                ┌────────────────┐
+                │ Signal Engine  │ → detected_signals table
+                └────────────────┘
 ```
 
 ---
@@ -124,7 +119,7 @@ The frontend proxies all `/api/*` requests to the backend via Vite's dev server 
 
 ### Design Principles
 
-- **Graceful degradation** — Every external API integration (Proxycurl, Crunchbase, Pipedrive, SMTP) silently skips when its API key is not set. The core pipeline always works.
+- **Graceful degradation** — Every external API integration (Crunchbase, Slack, HubSpot) silently skips when its API key is not set. The core pipeline always works.
 - **Database-first** — All state lives in SQLite. No external databases required.
 - **Single-user fallback** — Auth is optional. When `JWT_SECRET` is not set, the app runs in single-user mode with no login required.
 
@@ -148,7 +143,6 @@ linkedin-lead-scanner/
 │   ├── outreach-drafts.md        # Personalized outreach generation
 │   ├── icp-generator.md          # AI-powered ICP generation
 │   ├── follow-up-sequence.md     # Multi-step follow-up messages
-│   ├── reply-classifier.md       # Reply sentiment classification
 │   ├── message-analyzer.md       # Outreach message scoring
 │   └── content-generator.md      # LinkedIn post generation
 │
@@ -158,11 +152,11 @@ linkedin-lead-scanner/
 │   │
 │   ├── routes/                     # API routes, grouped by area
 │   │   ├── scan.js                 # POST /api/scan (SSE progress stream)
-│   │   ├── leads.js                # Lead list/detail, drafts, status, CSV import/export
-│   │   ├── crm.js                  # HubSpot, Apollo sequences, Pipedrive, email
+│   │   ├── leads.js                # Lead list/detail, drafts, status, CSV export
+│   │   ├── crm.js                  # HubSpot, Apollo sequences
 │   │   ├── campaigns.js            # Campaigns, variants, sequences
-│   │   ├── settings.js             # Monitor, ICP, suppression, webhooks, senders, keywords
-│   │   └── insights.js             # Analytics, meetings, signals, AI tools, usage & cost
+│   │   ├── settings.js             # Monitor, ICP generation, suppression
+│   │   └── insights.js             # Analytics, AI tools, usage & cost
 │   │
 │   ├── test/                       # node:test suites (npm test)
 │   │
@@ -170,11 +164,9 @@ linkedin-lead-scanner/
 │   │   ├── schema.sql              # SQLite table definitions (20 tables)
 │   │   ├── queries.js              # Core CRUD + migrations
 │   │   ├── campaignQueries.js      # Campaign + variant + lead assignment CRUD
-│   │   ├── webhookQueries.js       # Webhook registration + event filtering
 │   │   ├── icpQueries.js           # DB-backed ICP profile CRUD
-│   │   ├── senderQueries.js        # Multi-sender management + round-robin
 │   │   ├── analyticsQueries.js     # Dashboard, funnel, reply rate analytics
-│   │   ├── signalDetectionQueries.js # Signal CRUD + keyword monitors
+│   │   ├── signalDetectionQueries.js # Signal + headcount storage
 │   │   ├── suppressionQueries.js   # Suppression list operations
 │   │   ├── statusQueries.js        # Lead status + history tracking
 │   │   └── signalQueries.js        # Cross-scan appearance tracking
@@ -184,7 +176,6 @@ linkedin-lead-scanner/
 │   │
 │   ├── enrichment/
 │   │   ├── apolloClient.js         # Apollo People API (email, phone, company)
-│   │   └── proxycurlClient.js      # Proxycurl deep profile enrichment
 │   │
 │   ├── scoring/
 │   │   ├── icpScorer.js            # YAML + DB-backed ICP scoring
@@ -195,14 +186,11 @@ linkedin-lead-scanner/
 │   │   ├── signalEngine.js         # Central orchestrator
 │   │   ├── jobChangeDetector.js    # Title/company change detection (Apollo)
 │   │   ├── fundingDetector.js      # Funding round detection (Crunchbase/News)
-│   │   ├── hiringDetector.js       # Headcount growth detection (Apollo)
-│   │   ├── eventGroupTracker.js    # LinkedIn group/event tracking (Playwright)
-│   │   └── keywordMonitor.js       # Google News keyword monitoring
+│   │   └── hiringDetector.js       # Headcount growth detection (Apollo)
 │   │
 │   ├── outreach/
 │   │   ├── draftGenerator.js       # Claude-powered outreach draft generation
-│   │   ├── sequenceEngine.js       # Multi-step follow-up sequences
-│   │   └── conversationManager.js  # LinkedIn inbox polling + reply classification
+│   │   └── sequenceEngine.js       # Multi-step follow-up sequences
 │   │
 │   ├── ai/
 │   │   ├── icpGenerator.js         # Claude-powered ICP generation
@@ -211,10 +199,7 @@ linkedin-lead-scanner/
 │   │
 │   ├── integrations/
 │   │   ├── hubspotClient.js        # HubSpot CRM (create/update contacts)
-│   │   ├── pipedriveClient.js      # Pipedrive CRM (persons + deals)
 │   │   ├── apolloSequencer.js      # Apollo email sequence automation
-│   │   ├── emailSender.js          # SMTP email via nodemailer
-│   │   ├── webhookDispatcher.js    # HMAC-signed webhook delivery
 │   │   └── slackNotifier.js        # Slack webhook notifications
 │   │
 │   ├── auth/
@@ -222,12 +207,10 @@ linkedin-lead-scanner/
 │   │   └── authRoutes.js           # Signup / login / me endpoints
 │   │
 │   ├── import/
-│   │   └── csvImporter.js          # CSV lead import with smart column mapping
 │   │
 │   ├── jobs/
 │   │   ├── scanJob.js              # Full scan pipeline orchestrator
-│   │   ├── monitorJob.js           # Cron: account monitoring + signal detection
-│   │   └── withdrawalJob.js        # Cron: auto-withdraw stale LinkedIn invitations
+│   │   └── monitorJob.js           # Cron: account monitoring + signal detection
 │   │
 │   └── data/
 │       └── leads.db                # SQLite database (auto-created)
@@ -272,7 +255,7 @@ linkedin-lead-scanner/
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 20.12
 - **npm** ≥ 9
 - API keys (see [Environment Variables](#environment-variables))
 
@@ -344,16 +327,9 @@ Create a `.env` file in the project root. Variables marked **Optional** will cau
 | `BROWSER_PROFILE_PATH` | Optional | Playwright browser profile for persistent LinkedIn sessions |
 | `MONITOR_CRON_SCHEDULE` | Optional | Cron expression for monitor job (default: `0 */6 * * *`) |
 | **Signal Detection** | | |
-| `PROXYCURL_API_KEY` | Optional | Deep LinkedIn profile enrichment (headline, summary, connections) |
 | `CRUNCHBASE_API_KEY` | Optional | Funding round detection. Falls back to Google News RSS when not set |
 | **Email Outreach** | | |
-| `SMTP_HOST` | Optional | SMTP server hostname (e.g., `smtp.sendgrid.net`) |
-| `SMTP_PORT` | Optional | SMTP port (default: `587`) |
-| `SMTP_USER` | Optional | SMTP username |
-| `SMTP_PASS` | Optional | SMTP password |
-| `SMTP_FROM` | Optional | "From" address for outbound emails |
 | **CRM & Notifications** | | |
-| `PIPEDRIVE_API_TOKEN` | Optional | Pipedrive CRM integration |
 | `SLACK_WEBHOOK_URL` | Optional | Slack incoming webhook for scan notifications |
 | **Authentication** | | |
 | `JWT_SECRET` | Recommended | Turns on login. When not set, runs in single-user mode with **no login** — only do that on your own machine. Generate with: `openssl rand -base64 32` |
@@ -361,9 +337,7 @@ Create a `.env` file in the project root. Variables marked **Optional** will cau
 | **Safety Limits & Cost** | | |
 | `CLAUDE_MODEL` | Optional | Claude model for all AI features (default: `claude-sonnet-5`) |
 | `MAX_SCANS_PER_DAY` | Optional | Max LinkedIn scans per day, manual + monitor (default: `10`, `0` = no limit) |
-| `MAX_EMAILS_PER_DAY` | Optional | Max emails sent per day (default: `50`, `0` = no limit) |
 | `APOLLO_COST_PER_CREDIT` | Optional | USD per Apollo match, for cost reporting (default: `0`) |
-| `PROXYCURL_COST_PER_CALL` | Optional | USD per Proxycurl lookup, for cost reporting (default: `0`) |
 
 ### ICP Configuration
 
@@ -408,7 +382,7 @@ scoring_weights:
   profile_completeness: 10
 ```
 
-ICP profiles can also be stored in the database via the `/api/icp` endpoints — the scorer will check the DB first and fall back to YAML files.
+Add more profiles as extra YAML files in `config/` and pick one when starting a scan.
 
 ### Campaigns
 
@@ -484,11 +458,9 @@ The signal detection engine runs automatically on the monitor cron schedule and 
 | **Job Change** | Apollo People Match | Title or company changes for existing leads |
 | **Funding Rounds** | Crunchbase / Google News RSS | Recent funding events (<30 days) for lead companies |
 | **Hiring Spikes** | Apollo Org Enrich | >10% headcount growth between checks |
-| **Event & Groups** | Playwright (LinkedIn) | LinkedIn group memberships for high-score leads |
-| **Keyword Monitor** | Google News RSS | News articles matching user-defined keywords (<3 days) |
-| **Competitor Engagement** | Playwright (LinkedIn) | Your leads commenting on competitor posts |
+| **Competitor Engagement** | Playwright (LinkedIn) | Your leads commenting on competitor posts (logged by the monitor job) |
 
-All detected signals are stored in the database and dispatched to registered webhooks. Keyword monitors are configurable from the API.
+All detected signals are stored in the database.
 
 ---
 
@@ -504,11 +476,11 @@ Follow-up sequences with AI-written messages that **you review and send yourself
 | 4 | Day 14 | Break-up message — friendly close with FOMO |
 
 - When a step is due, the monitor job has **Claude draft it** with full context (lead title, company, original comment, previous messages) and puts it on the **Follow-ups** page
-- On that page you edit the draft, copy it, send it on LinkedIn, then click **I sent it** (or **Skip this step**)
+- On that page you edit the draft, copy it, send it on LinkedIn, then click **I sent it** (or **Skip this step**). If they answer, click **They replied** — the rest of their sequence is cancelled and the lead is marked replied
 - The next step only gets drafted once the previous one is sent or skipped, and its delay counts from when you actually sent — so sending late never makes the next one due instantly
 - Leads marked replied, meeting booked, converted or dead get no more drafts
 - **Start follow-ups** from the Results page: select leads, pick a campaign, click **Start follow-ups**. Leads are added to the campaign, the default 4 steps are created if needed, and the day-0 draft is written right away. Starting again for the same leads does nothing
-- **Not wired up yet:** reply detection (`conversationManager.js`), multi-sender round-robin (`senderQueries.js`) and stale invitation withdrawal (`withdrawalJob.js`) exist in code but nothing runs them
+- The app never reads your LinkedIn inbox or sends/withdraws anything on LinkedIn — replies are recorded by you, with **They replied**
 
 ---
 
@@ -567,13 +539,6 @@ The `/tools` page provides 3 AI-powered utilities:
 
 > **First-time setup:** Create the custom properties in HubSpot → Settings → Properties.
 
-#### Pipedrive
-
-- Push leads as Pipedrive Persons (create or update by email match)
-- Create deals associated with persons
-- Batch push support
-- Tracks `pipedrive_person_id` and `pipedrive_pushed_at` on each lead
-
 #### Apollo Sequences
 
 - List available sequences from your Apollo account
@@ -581,25 +546,19 @@ The `/tools` page provides 3 AI-powered utilities:
 - Tracks which sequence each lead was added to
 - Auto-adds to suppression list on push
 
-#### Direct Email (SMTP)
-
-- Send emails directly from the app via any SMTP provider (SendGrid, Mailgun, etc.)
-- Individual or batch sending with configurable delays
-- Updates lead status to "contacted" on send
-
 ---
 
 ### Daily Limits & Cost Tracking
 
-- **Daily caps** — `MAX_SCANS_PER_DAY` (manual + monitor scans) and `MAX_EMAILS_PER_DAY` protect your LinkedIn account and sender reputation. Hitting a cap stops the action with a clear message.
-- **Cost per scan** — every Claude call (exact token cost), Apollo match and Proxycurl lookup is logged against the scan that caused it. See **Analytics → Usage & Cost**.
+- **Daily caps** — `MAX_SCANS_PER_DAY` (manual + monitor scans) protects your LinkedIn account. Hitting a cap stops the action with a clear message.
+- **Cost per scan** — every Claude call (exact token cost) and Apollo match is logged against the scan that caused it. See **Analytics → Usage & Cost**.
 
 ### Suppression / Blacklist
 
 Prevents duplicate outreach:
 
 - **Manual:** Add LinkedIn URLs individually or bulk-import via CSV
-- **Automatic:** Leads pushed to HubSpot, Pipedrive, or Apollo Sequences are auto-added
+- **Automatic:** Leads pushed to HubSpot or Apollo Sequences are auto-added
 - **Pipeline integration:** Suppressed leads are filtered out *before* enrichment, saving API credits
 - **Reasons tracked:** `manual_exclude`, `in_pipeline`, `already_contacted`
 - **Search and filter** by reason or name
@@ -614,25 +573,12 @@ If someone comments on multiple posts, that's a stronger buying signal:
 - **Score boost:** +5 per additional appearance (capped at +20 bonus)
 - 🔥 badge in the lead table for multi-signal leads
 - Appearance history shown on lead detail page
-- Dedicated multi-signal leads endpoint (`/api/leads/multi-signal`)
 
 ---
 
-### CSV Import / Export
+### CSV Export
 
-- **Import:** Upload a CSV file via `POST /api/leads/import-csv` — supports 30+ common column header variations (e.g., `linkedin_url`, `LinkedIn URL`, `profile_url` all map to the same field). Uses upsert logic so duplicates are updated, not duplicated.
-- **Export:** Download all leads for a post as CSV via `/api/leads/export-csv?postUrl=...`
-
----
-
-### Webhook System
-
-Register webhook URLs to receive real-time event notifications:
-
-- **Supported events:** `lead.new`, `lead.scored`, `lead.status_changed`, `campaign.created`, `campaign.completed`, `signal.detected`, `*` (all events)
-- **HMAC signatures:** Optional per-webhook secret — each delivery includes an `X-Webhook-Signature: sha256=...` header
-- **Reliable delivery:** 10-second timeout per delivery, `Promise.allSettled` for non-blocking batch dispatch
-- **Manage via API:** `GET/POST/DELETE /api/webhooks`
+Download all leads for a post as CSV from the Results page (`/api/leads/export-csv?postUrl=...`).
 
 ---
 
@@ -646,17 +592,6 @@ Set up LinkedIn accounts to monitor automatically:
 - **Competitor accounts:** Scrapes comments and cross-references with your existing leads to detect engagement overlap
 - Toggle accounts active/inactive
 - After each monitoring run, the signal detection engine runs automatically
-
----
-
-### Multi-Sender Support
-
-Distribute LinkedIn outreach across multiple sender accounts:
-
-- Add senders with name, email, browser profile path, and daily limit
-- **Round-robin assignment** — the sender with the fewest sends today gets the next message
-- **Daily limit enforcement** — automatically resets counts at midnight
-- **Active/inactive toggle** — temporarily disable senders without deleting
 
 ---
 
@@ -691,18 +626,11 @@ JWT-based authentication, enabled by setting `JWT_SECRET`. Every `/api` route ex
 | `PATCH` | `/api/leads/:id/status` | Update pipeline status. Body: `{ status }` |
 | `GET` | `/api/leads/:id/history` | Get status change history |
 | `GET` | `/api/leads/:id/appearances` | Get cross-scan appearance history |
-| `GET` | `/api/leads/:id/signals` | Get detected signals for lead |
 | `POST` | `/api/leads/:id/push-hubspot` | Push to HubSpot |
-| `POST` | `/api/leads/:id/push-pipedrive` | Push to Pipedrive |
 | `POST` | `/api/leads/:id/push-apollo` | Push to Apollo Sequence. Body: `{ sequenceId }` |
-| `POST` | `/api/leads/:id/send-email` | Send email. Body: `{ subject, text, html }` |
-| `GET` | `/api/leads/multi-signal` | Get repeat engagers. Query: `min` (default: 2) |
 | `GET` | `/api/leads/export-csv` | Download leads as CSV. Query: `postUrl` |
-| `POST` | `/api/leads/import-csv` | Import leads from CSV (multipart form: `file`) |
 | `POST` | `/api/leads/push-hubspot-batch` | Batch HubSpot push. Body: `{ leadIds }` |
-| `POST` | `/api/leads/push-pipedrive-batch` | Batch Pipedrive push. Body: `{ leadIds }` |
 | `POST` | `/api/leads/push-apollo-batch` | Batch Apollo push. Body: `{ leadIds, sequenceId }` |
-| `POST` | `/api/leads/batch-status` | Batch status update. Body: `{ leadIds, status }` |
 
 ### Campaigns
 
@@ -714,39 +642,19 @@ JWT-based authentication, enabled by setting `JWT_SECRET`. Every `/api` route ex
 | `PATCH` | `/api/campaigns/:id` | Update campaign. Body: `{ name, status, description }` |
 | `DELETE` | `/api/campaigns/:id` | Delete campaign |
 | `POST` | `/api/campaigns/:id/variants` | Add A/B variant. Body: `{ name, messageTemplate, isControl }` |
-| `POST` | `/api/campaigns/:id/leads` | Assign leads. Body: `{ leadIds, variantId }` |
-| `GET` | `/api/campaigns/:id/leads` | Get campaign leads. Query: `status` |
-| `GET` | `/api/campaigns/:id/metrics` | Get campaign metrics |
-| `POST` | `/api/campaigns/:id/sequence` | Initialize sequence steps |
-| `GET` | `/api/campaigns/:id/sequence` | Get sequence steps |
-| `POST` | `/api/campaigns/:id/sequence/schedule` | Schedule leads for sequence (creates default steps if none). Body: `{ leadIds }` |
 | `POST` | `/api/campaigns/:id/follow-ups/start` | Add leads to the campaign and start their sequence. Body: `{ leadIds }` |
 | `GET` | `/api/follow-ups` | Drafted follow-ups waiting to be sent |
 | `PATCH` | `/api/follow-ups/:id` | Edit a draft. Body: `{ message }` |
 | `POST` | `/api/follow-ups/:id/sent` | Mark as sent by you; re-spaces later steps from now |
 | `POST` | `/api/follow-ups/:id/skip` | Skip this step |
+| `POST` | `/api/follow-ups/:id/replied` | Lead replied: cancel their remaining steps and mark them replied |
 
 ### ICP Profiles
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/icp` | List all DB-stored ICP profiles |
-| `POST` | `/api/icp` | Create profile. Body: `{ name, config }` |
-| `GET` | `/api/icp/:id` | Get profile by ID |
-| `PUT` | `/api/icp/:id` | Update profile. Body: `{ name, config }` |
-| `DELETE` | `/api/icp/:id` | Delete profile |
 | `POST` | `/api/icp/generate` | AI-generate ICP. Body: `{ productDescription, targetMarket, existingCustomers }` |
 | `GET` | `/api/icp-profiles` | List available YAML profile names |
-
-### Signals
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/signals` | Get recent signals. Query: `type`, `limit` |
-| `GET` | `/api/signals/stats` | Signal stats grouped by type |
-| `GET` | `/api/keyword-monitors` | List keyword monitors |
-| `POST` | `/api/keyword-monitors` | Add keyword. Body: `{ keyword }` |
-| `DELETE` | `/api/keyword-monitors/:id` | Delete keyword monitor |
 
 ### Analytics
 
@@ -758,38 +666,12 @@ JWT-based authentication, enabled by setting `JWT_SECRET`. Every `/api` route ex
 | `GET` | `/api/analytics/reply-rates` | Reply rates by campaign and intent tier |
 | `GET` | `/api/analytics/pipeline` | Pipeline stage counts |
 | `GET` | `/api/usage` | Today's cap usage, per-day usage/cost, and cost per scan. Query: `?days=30` |
-| `GET` | `/api/stats/funnel` | Conversion funnel stats |
-
-### Meetings
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/meetings` | Record a meeting. Body: `{ leadId, campaignId, signalType, notes }` |
-| `GET` | `/api/meetings` | List meetings. Query: `campaignId`, `limit` |
-
-### Senders
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/senders` | List all senders |
-| `POST` | `/api/senders` | Create sender. Body: `{ name, email, browserProfilePath, dailyLimit }` |
-| `PATCH` | `/api/senders/:id` | Update sender |
-| `DELETE` | `/api/senders/:id` | Delete sender |
-
-### Webhooks
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/webhooks` | List all webhooks |
-| `POST` | `/api/webhooks` | Create webhook. Body: `{ url, eventTypes, secret }` |
-| `DELETE` | `/api/webhooks/:id` | Delete webhook |
 
 ### Suppression List
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/suppression` | List all. Query: `reason`, `search` |
-| `GET` | `/api/suppression/count` | Get total count |
 | `POST` | `/api/suppression` | Add single entry. Body: `{ linkedinUrl, name, reason }` |
 | `POST` | `/api/suppression/bulk` | Bulk import. Body: `{ entries: [...] }` |
 | `DELETE` | `/api/suppression/:id` | Remove entry |
@@ -860,15 +742,11 @@ SQLite with **20 tables**, auto-created on first run:
 | `campaign_variants` | A/B test message variants per campaign |
 | `campaign_leads` | Lead-to-campaign assignment with per-lead status tracking |
 | `campaign_metrics` | Aggregated campaign performance snapshots |
-| `webhooks` | Registered webhook URLs with event type filters |
-| `icp_profiles` | Database-stored ICP profiles (config as JSON) |
-| `detected_signals` | All detected signals (job change, funding, hiring, keywords) |
-| `keyword_monitors` | User-defined keywords to monitor in news |
+| `icp_profiles` | Legacy table, unused (kept because `campaigns.icp_profile_id` references it) |
+| `detected_signals` | All detected signals (job change, funding, hiring) |
 | `company_headcount_history` | Periodic headcount snapshots for hiring spike detection |
-| `linkedin_senders` | Multi-sender accounts with daily limit tracking |
 | `sequence_steps` | Multi-step sequence definitions (step number, delay days) |
 | `sequence_tracking` | Per-lead sequence progress (status, sent_at, message_content) |
-| `meetings` | Meeting records linked to leads and campaigns |
 | `organizations` | Multi-tenant organization entities |
 | `users` | User accounts with bcrypt password hashes and org membership |
 
@@ -886,7 +764,6 @@ All Claude AI prompts are stored as Markdown files in the `prompts/` directory f
 | `outreach-drafts.md` | `draftGenerator.js` | Generate 4 personalized outreach messages per lead |
 | `icp-generator.md` | `icpGenerator.js` | Generate a complete ICP config from a product description |
 | `follow-up-sequence.md` | `sequenceEngine.js` | Generate follow-up messages for multi-step sequences |
-| `reply-classifier.md` | `conversationManager.js` | Classify reply sentiment and intent (positive/negative/neutral → stop/continue/pause sequence) |
 | `message-analyzer.md` | `messageAnalyzer.js` | Score outreach messages on personalization, clarity, CTA, tone, length |
 | `content-generator.md` | `contentGenerator.js` | Generate LinkedIn posts with hook, body, hashtags, engagement prediction |
 
@@ -901,12 +778,12 @@ All Claude AI prompts are stored as Markdown files in the `prompts/` directory f
 | **Database** | SQLite via `better-sqlite3` |
 | **Scraping** | Playwright + stealth plugin |
 | **AI** | Anthropic Claude via one shared helper (`server/ai/claude.js`) with structured JSON output; model set by `CLAUDE_MODEL` |
-| **Lead Enrichment** | Apollo.io People API, Proxycurl (optional) |
+| **Lead Enrichment** | Apollo.io People API |
 | **Signal Detection** | Apollo, Crunchbase (optional), Google News RSS (free fallback) |
-| **CRM** | HubSpot Contacts API, Pipedrive API (optional) |
-| **Email Automation** | Apollo Sequences API, nodemailer SMTP (optional) |
+| **CRM** | HubSpot Contacts API |
+| **Email Automation** | Apollo Sequences API |
 | **Auth** | JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`) |
-| **Notifications** | Slack Webhooks, custom Webhooks (HMAC-signed) |
+| **Notifications** | Slack Webhooks |
 | **Frontend** | React 18 + React Router v6 |
 | **Build Tool** | Vite |
 | **Styling** | Tailwind CSS |

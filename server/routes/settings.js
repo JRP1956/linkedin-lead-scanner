@@ -3,10 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const queries = require('../db/queries');
 const suppressionQueries = require('../db/suppressionQueries');
-const icpQueries = require('../db/icpQueries');
-const webhookQueries = require('../db/webhookQueries');
-const senderQueries = require('../db/senderQueries');
-const signalDetectionQueries = require('../db/signalDetectionQueries');
 const { generateICP } = require('../ai/icpGenerator');
 
 const router = express.Router();
@@ -84,14 +80,6 @@ router.get('/suppression', (req, res) => {
 });
 
 /**
- * GET /api/suppression/count
- * Get total suppressed count.
- */
-router.get('/suppression/count', (req, res) => {
-  res.json({ count: suppressionQueries.getSuppressionCount() });
-});
-
-/**
  * POST /api/suppression
  * Add a single entry to the suppression list.
  */
@@ -139,78 +127,7 @@ router.delete('/suppression/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ─── ICP Profile Routes ─────────────────────────────────────────────────────
-
-/**
- * POST /api/icp
- * Create a new ICP profile in the database.
- */
-router.post('/icp', (req, res) => {
-  const { name, config } = req.body;
-  if (!name || !config) {
-    return res.status(400).json({ error: 'MISSING_FIELDS', message: 'name and config are required' });
-  }
-  try {
-    const profile = icpQueries.createICPProfile({ name, config });
-    res.json(profile);
-  } catch (err) {
-    if (err.message.includes('UNIQUE constraint')) {
-      return res.status(409).json({ error: 'DUPLICATE', message: 'An ICP profile with this name already exists' });
-    }
-    res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
-  }
-});
-
-/**
- * GET /api/icp
- * Get all ICP profiles (DB + YAML).
- */
-router.get('/icp', (req, res) => {
-  try {
-    const dbProfiles = icpQueries.getAllICPProfiles();
-    res.json(dbProfiles);
-  } catch (err) {
-    res.status(500).json({ error: 'FETCH_FAILED', message: err.message });
-  }
-});
-
-/**
- * GET /api/icp/:id
- * Get a single ICP profile.
- */
-router.get('/icp/:id', (req, res) => {
-  const profile = icpQueries.getICPProfileById(parseInt(req.params.id, 10));
-  if (!profile) {
-    return res.status(404).json({ error: 'NOT_FOUND', message: 'ICP profile not found' });
-  }
-  res.json(profile);
-});
-
-/**
- * PUT /api/icp/:id
- * Update an ICP profile.
- */
-router.put('/icp/:id', (req, res) => {
-  const { name, config } = req.body;
-  try {
-    const profile = icpQueries.updateICPProfile(parseInt(req.params.id, 10), { name, config });
-    if (!profile) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'ICP profile not found' });
-    }
-    res.json(profile);
-  } catch (err) {
-    res.status(500).json({ error: 'UPDATE_FAILED', message: err.message });
-  }
-});
-
-/**
- * DELETE /api/icp/:id
- * Delete an ICP profile.
- */
-router.delete('/icp/:id', (req, res) => {
-  icpQueries.deleteICPProfile(parseInt(req.params.id, 10));
-  res.json({ success: true });
-});
+// ─── ICP Generation ─────────────────────────────────────────────────────────
 
 /**
  * POST /api/icp/generate
@@ -230,98 +147,6 @@ router.post('/icp/generate', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'GENERATION_FAILED', message: err.message });
   }
-});
-
-// ─── Webhook Routes ─────────────────────────────────────────────────────────
-
-/**
- * GET /api/webhooks
- * List all webhooks.
- */
-router.get('/webhooks', (req, res) => {
-  res.json(webhookQueries.getAllWebhooks());
-});
-
-/**
- * POST /api/webhooks
- * Create a new webhook.
- */
-router.post('/webhooks', (req, res) => {
-  const { url, eventTypes, secret } = req.body;
-  if (!url || !eventTypes) {
-    return res.status(400).json({ error: 'MISSING_FIELDS', message: 'url and eventTypes are required' });
-  }
-  try {
-    const webhook = webhookQueries.createWebhook({ url, eventTypes, secret });
-    res.json(webhook);
-  } catch (err) {
-    res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
-  }
-});
-
-/**
- * DELETE /api/webhooks/:id
- * Delete a webhook.
- */
-router.delete('/webhooks/:id', (req, res) => {
-  webhookQueries.deleteWebhook(parseInt(req.params.id, 10));
-  res.json({ success: true });
-});
-
-// ─── Sender Routes (D3) ─────────────────────────────────────────────────────
-
-router.get('/senders', (req, res) => {
-  res.json(senderQueries.getAllSenders());
-});
-
-router.post('/senders', (req, res) => {
-  const { name, email, browserProfilePath, dailyLimit } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'MISSING_NAME', message: 'Sender name is required' });
-  }
-  try {
-    const sender = senderQueries.createSender({ name, email, browserProfilePath, dailyLimit });
-    res.json(sender);
-  } catch (err) {
-    res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
-  }
-});
-
-router.patch('/senders/:id', (req, res) => {
-  try {
-    const sender = senderQueries.updateSender(parseInt(req.params.id, 10), req.body);
-    res.json(sender);
-  } catch (err) {
-    res.status(500).json({ error: 'UPDATE_FAILED', message: err.message });
-  }
-});
-
-router.delete('/senders/:id', (req, res) => {
-  senderQueries.deleteSender(parseInt(req.params.id, 10));
-  res.json({ success: true });
-});
-
-// Keyword monitor CRUD
-router.get('/keyword-monitors', (req, res) => {
-  res.json(signalDetectionQueries.getAllKeywordMonitors());
-});
-
-router.post('/keyword-monitors', (req, res) => {
-  const { keyword } = req.body;
-  if (!keyword) {
-    return res.status(400).json({ error: 'MISSING_KEYWORD', message: 'keyword is required' });
-  }
-  try {
-    signalDetectionQueries.createKeywordMonitor(keyword);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
-  }
-});
-
-router.delete('/keyword-monitors/:id', (req, res) => {
-  signalDetectionQueries.deleteKeywordMonitor(parseInt(req.params.id, 10));
-  res.json({ success: true });
 });
 
 module.exports = router;

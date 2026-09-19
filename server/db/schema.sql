@@ -130,17 +130,6 @@ CREATE TABLE IF NOT EXISTS campaign_metrics (
   FOREIGN KEY (variant_id) REFERENCES campaign_variants(id)
 );
 
--- ─── Phase 1: Webhooks ──────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS webhooks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url TEXT NOT NULL,
-  event_types TEXT NOT NULL,
-  active INTEGER DEFAULT 1,
-  secret TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
 -- ─── Phase 1: ICP Profiles (DB-backed) ──────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS icp_profiles (
@@ -165,33 +154,12 @@ CREATE TABLE IF NOT EXISTS detected_signals (
   FOREIGN KEY (lead_id) REFERENCES leads(id)
 );
 
-CREATE TABLE IF NOT EXISTS keyword_monitors (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  keyword TEXT NOT NULL,
-  active INTEGER DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
 CREATE TABLE IF NOT EXISTS company_headcount_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_domain TEXT NOT NULL,
   company_name TEXT,
   headcount INTEGER,
   checked_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- ─── Phase 3: Multi-Sender ─────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS linkedin_senders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  email TEXT,
-  browser_profile_path TEXT,
-  daily_limit INTEGER DEFAULT 50,
-  sent_today INTEGER DEFAULT 0,
-  last_reset_date TEXT,
-  active INTEGER DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ─── Phase 3: Follow-up Sequences ──────────────────────────────────────────
@@ -218,19 +186,6 @@ CREATE TABLE IF NOT EXISTS sequence_tracking (
   FOREIGN KEY (campaign_lead_id) REFERENCES campaign_leads(id) ON DELETE CASCADE
 );
 
--- ─── Phase 4: Meetings & Conversion Tracking ───────────────────────────────
-
-CREATE TABLE IF NOT EXISTS meetings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  lead_id INTEGER NOT NULL,
-  campaign_id INTEGER,
-  signal_type TEXT,
-  booked_at TEXT NOT NULL DEFAULT (datetime('now')),
-  notes TEXT,
-  FOREIGN KEY (lead_id) REFERENCES leads(id),
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
-);
-
 -- ─── Phase 5: Organizations & Users ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS organizations (
@@ -251,7 +206,7 @@ CREATE TABLE IF NOT EXISTS users (
   FOREIGN KEY (org_id) REFERENCES organizations(id)
 );
 
--- One row per billable or rate-limited action: scan, email, claude, apollo, proxycurl
+-- One row per billable or rate-limited action: scan, claude, apollo
 CREATE TABLE IF NOT EXISTS usage_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

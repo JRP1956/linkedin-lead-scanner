@@ -186,6 +186,4 @@ async function enrichPerson({ fullName, linkedinUrl, companyDomain }) {
 
 module.exports = {
   enrichPerson,
-  extractDomainFromLinkedinUrl,
-  toHeadcountRange,
 };

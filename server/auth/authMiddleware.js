@@ -50,17 +50,6 @@ function requireRole(role) {
 }
 
 /**
- * Middleware to scope queries by organization.
- * Adds orgId to req for use in query functions.
- */
-function scopeByOrg(req, res, next) {
-  if (req.user && req.user.orgId) {
-    req.orgId = req.user.orgId;
-  }
-  next();
-}
-
-/**
  * Generate a JWT token for a user.
  */
 function generateToken(user) {
@@ -76,4 +65,4 @@ function generateToken(user) {
   );
 }
 
-module.exports = { authenticate, requireRole, scopeByOrg, generateToken };
+module.exports = { authenticate, requireRole, generateToken };

@@ -3,16 +3,6 @@ const { getDb } = require('./queries');
 // ─── Suppression List Queries ────────────────────────────────────────────────
 
 /**
- * Check if a LinkedIn URL is on the suppression list.
- * @param {string} linkedinUrl
- * @returns {boolean}
- */
-function isLeadSuppressed(linkedinUrl) {
-  const stmt = getDb().prepare('SELECT 1 FROM suppression_list WHERE linkedin_url = ?');
-  return !!stmt.get(linkedinUrl);
-}
-
-/**
  * Check multiple LinkedIn URLs against the suppression list.
  * Returns a Set of suppressed URLs for fast lookup.
  * @param {string[]} linkedinUrls
@@ -107,21 +97,10 @@ function getAllSuppressed({ reason, search } = {}) {
   return stmt.all(...params);
 }
 
-/**
- * Get total count of suppressed entries.
- * @returns {number}
- */
-function getSuppressionCount() {
-  const stmt = getDb().prepare('SELECT COUNT(*) as count FROM suppression_list');
-  return stmt.get().count;
-}
-
 module.exports = {
-  isLeadSuppressed,
   getSuppressedUrls,
   addToSuppressionList,
   bulkAddToSuppressionList,
   removeFromSuppressionList,
   getAllSuppressed,
-  getSuppressionCount,
 };

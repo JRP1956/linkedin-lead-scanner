@@ -16,18 +16,6 @@ function recordAppearance({ linkedinUrl, postUrl, commentText }) {
 }
 
 /**
- * Get the number of distinct posts a lead has appeared in.
- * @param {string} linkedinUrl
- * @returns {number}
- */
-function getAppearanceCount(linkedinUrl) {
-  const stmt = getDb().prepare(
-    'SELECT COUNT(DISTINCT post_url) as count FROM lead_appearances WHERE linkedin_url = ?'
-  );
-  return stmt.get(linkedinUrl)?.count || 0;
-}
-
-/**
  * Get appearance counts for multiple LinkedIn URLs at once.
  * Returns a Map of linkedinUrl → count for efficient lookup during scan.
  * @param {string[]} linkedinUrls
@@ -59,28 +47,8 @@ function getAppearanceHistory(linkedinUrl) {
   return stmt.all(linkedinUrl);
 }
 
-/**
- * Get leads that have appeared in multiple posts (multi-signal leads).
- * @param {number} [minAppearances=2]
- * @returns {Array<{ linkedin_url: string, appearance_count: number }>}
- */
-function getMultiSignalLeads(minAppearances = 2) {
-  const stmt = getDb().prepare(`
-    SELECT la.linkedin_url, COUNT(DISTINCT la.post_url) as appearance_count,
-           l.name, l.title, l.company, l.total_score, l.intent_tier, l.lead_status
-    FROM lead_appearances la
-    LEFT JOIN leads l ON la.linkedin_url = l.linkedin_url
-    GROUP BY la.linkedin_url
-    HAVING appearance_count >= ?
-    ORDER BY appearance_count DESC, l.total_score DESC
-  `);
-  return stmt.all(minAppearances);
-}
-
 module.exports = {
   recordAppearance,
-  getAppearanceCount,
   getAppearanceCounts,
   getAppearanceHistory,
-  getMultiSignalLeads,
 };

@@ -1,10 +1,8 @@
 const express = require('express');
 const campaignQueries = require('../db/campaignQueries');
 const { getAvailableCampaigns } = require('../outreach/draftGenerator');
-const { dispatchEvent } = require('../integrations/webhookDispatcher');
 const {
-  initializeSequence, getSequenceSteps, scheduleSequenceForLeads, startFollowUps, processDueSteps,
-  getReadyDrafts, updateDraftMessage, markStepSent, skipStep,
+  startFollowUps, processDueSteps, getReadyDrafts, updateDraftMessage, markStepSent, skipStep, markReplied,
 } = require('../outreach/sequenceEngine');
 
 const router = express.Router();
@@ -37,7 +35,6 @@ router.post('/campaigns', (req, res) => {
   }
   try {
     const campaign = campaignQueries.createCampaign({ name, status, icpProfileId, description });
-    dispatchEvent('campaign.created', campaign);
     res.json(campaign);
   } catch (err) {
     res.status(500).json({ error: 'CREATE_FAILED', message: err.message });
@@ -101,78 +98,6 @@ router.post('/campaigns/:id/variants', (req, res) => {
   }
 });
 
-/**
- * POST /api/campaigns/:id/leads
- * Assign leads to a campaign.
- */
-router.post('/campaigns/:id/leads', (req, res) => {
-  const { leadIds, variantId } = req.body;
-  if (!leadIds || !Array.isArray(leadIds)) {
-    return res.status(400).json({ error: 'INVALID_LEAD_IDS', message: 'leadIds must be an array' });
-  }
-  try {
-    const assigned = campaignQueries.assignLeadsToCampaign(
-      parseInt(req.params.id, 10),
-      leadIds,
-      variantId
-    );
-    res.json({ assigned, success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'ASSIGN_FAILED', message: err.message });
-  }
-});
-
-/**
- * GET /api/campaigns/:id/leads
- * Get leads assigned to a campaign.
- */
-router.get('/campaigns/:id/leads', (req, res) => {
-  const leads = campaignQueries.getCampaignLeads(
-    parseInt(req.params.id, 10),
-    { status: req.query.status }
-  );
-  res.json(leads);
-});
-
-/**
- * GET /api/campaigns/:id/metrics
- * Get metrics for a campaign.
- */
-router.get('/campaigns/:id/metrics', (req, res) => {
-  const metrics = campaignQueries.getCampaignMetrics(parseInt(req.params.id, 10));
-  res.json(metrics);
-});
-
-// ─── Sequence Routes (D2) ───────────────────────────────────────────────────
-
-router.post('/campaigns/:id/sequence', (req, res) => {
-  const { steps } = req.body;
-  try {
-    const sequence = initializeSequence(parseInt(req.params.id, 10), steps);
-    res.json(sequence);
-  } catch (err) {
-    res.status(500).json({ error: 'INIT_FAILED', message: err.message });
-  }
-});
-
-router.get('/campaigns/:id/sequence', (req, res) => {
-  const steps = getSequenceSteps(parseInt(req.params.id, 10));
-  res.json(steps);
-});
-
-router.post('/campaigns/:id/sequence/schedule', (req, res) => {
-  const { leadIds } = req.body;
-  if (!leadIds || !Array.isArray(leadIds)) {
-    return res.status(400).json({ error: 'INVALID_LEAD_IDS', message: 'leadIds must be an array' });
-  }
-  try {
-    scheduleSequenceForLeads(parseInt(req.params.id, 10), leadIds);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'SCHEDULE_FAILED', message: err.message });
-  }
-});
-
 // ─── Follow-up Review Queue ─────────────────────────────────────────────────
 // Due follow-ups are drafted by the monitor job; you send them and mark them here.
 
@@ -229,6 +154,13 @@ router.post('/follow-ups/:id/sent', (req, res) => {
 router.post('/follow-ups/:id/skip', (req, res) => {
   try {
     skipStep(parseInt(req.params.id, 10));
+    res.json({ success: true });
+  } catch (err) { followUpError(res, err); }
+});
+
+router.post('/follow-ups/:id/replied', (req, res) => {
+  try {
+    markReplied(parseInt(req.params.id, 10));
     res.json({ success: true });
   } catch (err) { followUpError(res, err); }
 });
