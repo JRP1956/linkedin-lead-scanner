@@ -19,7 +19,8 @@ function recordUsage({ kind, units = 1, costUsd = 0, detail = null }) {
   ).run(kind, postUrl, units, costUsd, detail);
 }
 
-// ponytail: "today" is a UTC day (SQLite 'now'), fine for caps meant to avoid bursts
+// ponytail: "today" is a UTC day (SQLite 'now'), fine for caps meant to avoid bursts;
+// switch to date('now', 'localtime') here and in the query if caps must follow the user's calendar day
 function countToday(kind) {
   return getDb().prepare(
     "SELECT COUNT(*) AS n FROM usage_events WHERE kind = ? AND date(created_at) = date('now')"
