@@ -1,15 +1,36 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { getDb } = require('../db/queries');
-const { generateToken } = require('./authMiddleware');
+const { authenticate, requireRole, generateToken } = require('./authMiddleware');
 
 const router = express.Router();
+
+// Login and first-user signup are public; everything else needs a valid token.
+const PUBLIC_PATHS = new Set(['/login', '/signup']);
+router.use((req, res, next) => (PUBLIC_PATHS.has(req.path) ? next() : authenticate(req, res, next)));
+
+router.use((req, res, next) => {
+  if (!process.env.JWT_SECRET) {
+    return res.status(400).json({ error: 'AUTH_DISABLED', message: 'Set JWT_SECRET in .env to enable accounts' });
+  }
+  next();
+});
+
+/**
+ * The very first account can sign up freely (it becomes the admin).
+ * After that, only a logged-in admin can create accounts.
+ */
+function signupGate(req, res, next) {
+  const { n } = getDb().prepare('SELECT COUNT(*) AS n FROM users').get();
+  if (n === 0) return next();
+  authenticate(req, res, () => requireRole('admin')(req, res, next));
+}
 
 /**
  * POST /api/auth/signup
  * Create a new account and organization.
  */
-router.post('/signup', async (req, res) => {
+router.post('/signup', signupGate, async (req, res) => {
   const { email, password, name, orgName } = req.body;
 
   if (!email || !password) {
@@ -32,9 +53,10 @@ router.post('/signup', async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create organization if name provided
-    let orgId = null;
-    if (orgName) {
+    // Admin-created accounts join the admin's org as members; the first account is the admin
+    let orgId = req.user?.orgId || null;
+    const role = req.user ? 'member' : 'admin';
+    if (orgName && !req.user) {
       const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const orgResult = db.prepare(
         'INSERT INTO organizations (name, slug) VALUES (?, ?)'
@@ -45,7 +67,7 @@ router.post('/signup', async (req, res) => {
     // Create user
     const userResult = db.prepare(
       'INSERT INTO users (email, password_hash, name, org_id, role) VALUES (?, ?, ?, ?, ?)'
-    ).run(email, passwordHash, name || null, orgId, 'admin');
+    ).run(email, passwordHash, name || null, orgId, role);
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userResult.lastInsertRowid);
     const token = generateToken(user);

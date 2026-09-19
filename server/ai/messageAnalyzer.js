@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { ask, objectSchema } = require('./claude');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,7 +10,20 @@ try {
   console.warn(`[MessageAnalyzer] Could not read prompt: ${err.message}`);
 }
 
-const anthropic = new Anthropic();
+const ANALYSIS_SCHEMA = objectSchema({
+  scores: objectSchema({
+    personalization: { type: 'integer' },
+    clarity: { type: 'integer' },
+    cta_strength: { type: 'integer' },
+    tone: { type: 'integer' },
+    length: { type: 'integer' },
+    overall: { type: 'integer' },
+  }),
+  strengths: { type: 'array', items: { type: 'string' } },
+  improvements: { type: 'array', items: { type: 'string' } },
+  rewritten: { type: 'string' },
+  tips: { type: 'array', items: { type: 'string' } },
+});
 
 /**
  * Message Analyzer (H2)
@@ -30,22 +43,8 @@ ${message}
 ${context ? `--- CONTEXT ---\n${context}` : ''}`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text = response.content[0].text.trim();
-    try {
-      return { success: true, analysis: JSON.parse(text) };
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return { success: true, analysis: JSON.parse(jsonMatch[0]) };
-      }
-      return { success: true, analysis: { rawFeedback: text } };
-    }
+    const analysis = await ask({ prompt, schema: ANALYSIS_SCHEMA, tag: 'analyze-message' });
+    return { success: true, analysis };
   } catch (err) {
     console.error('[MessageAnalyzer] Error:', err.message);
     return { success: false, error: err.message };

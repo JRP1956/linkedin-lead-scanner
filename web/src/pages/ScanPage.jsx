@@ -10,6 +10,7 @@ export default function ScanPage() {
   const [postUrl, setPostUrl] = useState('');
   const [outreachMode, setOutreachMode] = useState('direct');
   const [icpProfile, setIcpProfile] = useState('icp');
+  const [includeReactions, setIncludeReactions] = useState(false);
   const [icpProfiles, setIcpProfiles] = useState(['icp']);
   const [campaigns, setCampaigns] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -46,7 +47,8 @@ export default function ScanPage() {
     setCurrentStep(null);
 
     try {
-      const response = await startScan({ postUrl, outreachMode, icpProfile });
+      const response = await startScan({ postUrl, outreachMode, icpProfile, includeReactions });
+      if (!response.ok) throw new Error((await response.json()).message);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -167,6 +169,23 @@ export default function ScanPage() {
             ))}
           </div>
         </div>
+
+        {/* Reactions */}
+        <label className="mb-6 flex items-start gap-3 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-50/50">
+          <input
+            type="checkbox"
+            checked={includeReactions}
+            onChange={(e) => setIncludeReactions(e.target.checked)}
+            disabled={isScanning}
+            className="mt-0.5 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+          />
+          <div>
+            <div className="text-sm font-medium text-slate-800">Also include people who reacted</div>
+            <div className="text-xs text-slate-500 mt-0.5">
+              Up to 50 extra leads. Reactions are a weaker signal than comments and use more Apollo credits.
+            </div>
+          </div>
+        </label>
 
         {/* ICP Profile */}
         <div className="mb-8">

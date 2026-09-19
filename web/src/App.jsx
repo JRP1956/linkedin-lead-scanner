@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
+import { getToken, login, logout } from './api/client';
 import ScanPage from './pages/ScanPage';
 import ResultsPage from './pages/ResultsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
@@ -10,6 +11,7 @@ import CampaignPage from './pages/CampaignPage';
 import PipelinePage from './pages/PipelinePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ToolsPage from './pages/ToolsPage';
+import FollowUpsPage from './pages/FollowUpsPage';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', end: true },
@@ -17,13 +19,67 @@ const NAV_ITEMS = [
   { to: '/results', label: 'Results' },
   { to: '/campaigns', label: 'Campaigns' },
   { to: '/pipeline', label: 'Pipeline' },
+  { to: '/follow-ups', label: 'Follow-ups' },
   { to: '/monitor', label: 'Monitor' },
   { to: '/analytics', label: 'Analytics' },
   { to: '/tools', label: 'AI Tools' },
   { to: '/suppress', label: 'Suppress' },
 ];
 
+function LoginPage({ onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await login(email, password);
+      onLogin();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-4">
+        <h1 className="text-xl font-semibold text-slate-900">Sign in to Lead Scanner</h1>
+        <label className="block">
+          <span className="block text-sm font-medium text-slate-700 mb-1">Email</span>
+          <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
+        </label>
+        <label className="block">
+          <span className="block text-sm font-medium text-slate-700 mb-1">Password</span>
+          <input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
+        </label>
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <button type="submit" className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
+          Sign in
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function App() {
+  // Shown only when the server rejects a request (auth enabled via JWT_SECRET)
+  const [needsLogin, setNeedsLogin] = useState(false);
+
+  useEffect(() => {
+    const onAuthRequired = () => setNeedsLogin(true);
+    window.addEventListener('auth-required', onAuthRequired);
+    return () => window.removeEventListener('auth-required', onAuthRequired);
+  }, []);
+
+  if (needsLogin) {
+    // Remount the app after login so pages refetch their data
+    return <LoginPage onLogin={() => { setNeedsLogin(false); window.location.reload(); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Navigation */}
@@ -55,6 +111,11 @@ export default function App() {
                   {item.label}
                 </NavLink>
               ))}
+              {getToken() && (
+                <button onClick={logout} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 whitespace-nowrap">
+                  Log out
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -69,6 +130,7 @@ export default function App() {
           <Route path="/leads/:id" element={<LeadDetailPage />} />
           <Route path="/campaigns" element={<CampaignPage />} />
           <Route path="/pipeline" element={<PipelinePage />} />
+          <Route path="/follow-ups" element={<FollowUpsPage />} />
           <Route path="/monitor" element={<MonitorPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/tools" element={<ToolsPage />} />

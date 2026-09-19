@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { ask, objectSchema } = require('../ai/claude');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,8 +13,18 @@ try {
   console.error(`[IntentClassifier] Could not read prompt template at ${intentPromptPath}:`, err.message);
 }
 
-// Initialize Anthropic client
-const anthropic = new Anthropic();
+const INTENT_SCHEMA = objectSchema({
+  results: {
+    type: 'array',
+    items: objectSchema({
+      id: { type: 'integer' },
+      tier: { type: 'string', enum: ['T1', 'T2', 'T3', 'T4', 'T5'] },
+      score: { type: 'integer' },
+      reasoning: { type: 'string' },
+      signals: { type: 'array', items: { type: 'string' } },
+    }),
+  },
+});
 
 /**
  * Classify the intent of a batch of LinkedIn comments using Claude API.
@@ -37,49 +47,11 @@ async function classifyComments(comments) {
 
   const fullPrompt = `${intentPromptTemplate}\n\nComments:\n${commentsBlock}`;
 
-  const timestamp = new Date().toISOString();
-  console.log(`[IntentClassifier] ${timestamp} | Classifying ${comments.length} comments in single batch`);
+  console.log(`[IntentClassifier] Classifying ${comments.length} comments in single batch`);
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: fullPrompt }],
-    });
-
-    // Log token usage for cost monitoring
-    const inputTokens = response.usage?.input_tokens || 0;
-    const outputTokens = response.usage?.output_tokens || 0;
-    console.log(
-      `[IntentClassifier] ${timestamp} | Tokens — input: ${inputTokens}, output: ${outputTokens}, ` +
-      `estimated cost: $${((inputTokens * 0.003 + outputTokens * 0.015) / 1000).toFixed(4)}`
-    );
-
-    const responseText = response.content[0].text.trim();
-
-    // Parse the JSON response — Claude should return only a JSON array
-    let results;
-    try {
-      results = JSON.parse(responseText);
-    } catch (parseErr) {
-      // Sometimes Claude wraps in markdown fences despite instructions
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        results = JSON.parse(jsonMatch[0]);
-      } else {
-        console.error('[IntentClassifier] Failed to parse Claude response:', responseText);
-        throw parseErr;
-      }
-    }
-
-    // Validate and normalize results
-    return results.map((r) => ({
-      id: r.id,
-      tier: ['T1', 'T2', 'T3', 'T4', 'T5'].includes(r.tier) ? r.tier : 'T4',
-      score: Math.min(45, Math.max(0, parseInt(r.score, 10) || 10)),
-      reasoning: r.reasoning || '',
-      signals: Array.isArray(r.signals) ? r.signals : [],
-    }));
+    const { results } = await ask({ prompt: fullPrompt, schema: INTENT_SCHEMA, tag: 'intent' });
+    return normalizeIntentResults(results);
   } catch (err) {
     if (err.code === CLAUDE_API_ERROR) throw err;
 
@@ -90,4 +62,17 @@ async function classifyComments(comments) {
   }
 }
 
-module.exports = { classifyComments };
+/**
+ * Clamp model output to the ranges the ranker expects (tier T1–T5, score 0–45).
+ */
+function normalizeIntentResults(results) {
+  return results.map((r) => ({
+    id: r.id,
+    tier: ['T1', 'T2', 'T3', 'T4', 'T5'].includes(r.tier) ? r.tier : 'T4',
+    score: Math.min(45, Math.max(0, parseInt(r.score, 10) || 10)),
+    reasoning: r.reasoning || '',
+    signals: Array.isArray(r.signals) ? r.signals : [],
+  }));
+}
+
+module.exports = { classifyComments, normalizeIntentResults };

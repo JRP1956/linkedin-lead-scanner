@@ -250,3 +250,17 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (org_id) REFERENCES organizations(id)
 );
+
+-- One row per billable or rate-limited action: scan, email, claude, apollo, proxycurl
+CREATE TABLE IF NOT EXISTS usage_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  post_url TEXT,
+  units INTEGER NOT NULL DEFAULT 1,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_events_kind_created ON usage_events(kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_events_post_url ON usage_events(post_url);

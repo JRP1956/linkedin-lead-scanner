@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { getLeads, pushBatchToHubspot, pushBatchToApolloSequence, getApolloSequences, getExportCsvUrl } from '../api/client';
+import { useSearchParams, Link } from 'react-router-dom';
+import { getLeads, pushBatchToHubspot, pushBatchToApolloSequence, getApolloSequences, downloadCsv, getCampaigns, startFollowUps } from '../api/client';
 import LeadTable from '../components/LeadTable';
 
 /**
@@ -25,6 +25,23 @@ export default function ResultsPage() {
   // Batch action state
   const [pushing, setPushing] = useState(false);
   const [pushResult, setPushResult] = useState(null);
+
+  // Follow-up sequences
+  const [campaigns, setCampaigns] = useState([]);
+  const [followUpCampaignId, setFollowUpCampaignId] = useState('');
+  const [startingFollowUps, setStartingFollowUps] = useState(false);
+  const [followUpResult, setFollowUpResult] = useState(null);
+
+  useEffect(() => {
+    // Only real (database) campaigns can hold a sequence; the API may also return file-based names
+    getCampaigns()
+      .then((list) => {
+        const dbCampaigns = (Array.isArray(list) ? list : []).filter((c) => c && c.id);
+        setCampaigns(dbCampaigns);
+        if (dbCampaigns.length > 0) setFollowUpCampaignId(String(dbCampaigns[0].id));
+      })
+      .catch(() => setCampaigns([]));
+  }, []);
 
   useEffect(() => {
     if (!postUrl) return;
@@ -87,6 +104,20 @@ export default function ResultsPage() {
       setPushResult({ error: err.message });
     } finally {
       setPushing(false);
+    }
+  };
+
+  const handleStartFollowUps = async () => {
+    if (!followUpCampaignId || selectedIds.size === 0) return;
+    setStartingFollowUps(true);
+    setFollowUpResult(null);
+    try {
+      const result = await startFollowUps(Number(followUpCampaignId), [...selectedIds]);
+      setFollowUpResult(result);
+    } catch (err) {
+      setFollowUpResult({ error: err.message });
+    } finally {
+      setStartingFollowUps(false);
     }
   };
 
@@ -218,7 +249,32 @@ export default function ResultsPage() {
           <span className="text-sm font-medium text-blue-800">
             {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} selected
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {campaigns.length > 0 ? (
+              <>
+                <select
+                  value={followUpCampaignId}
+                  onChange={(e) => setFollowUpCampaignId(e.target.value)}
+                  aria-label="Campaign for follow-ups"
+                  className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+                >
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleStartFollowUps}
+                  disabled={startingFollowUps}
+                  className="px-4 py-2 text-xs font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                >
+                  {startingFollowUps ? 'Starting...' : 'Start follow-ups'}
+                </button>
+              </>
+            ) : (
+              <Link to="/campaigns" className="px-3 py-2 text-xs text-blue-700 hover:underline">
+                Create a campaign to start follow-ups
+              </Link>
+            )}
             <button
               onClick={handleBatchPush}
               disabled={pushing}
@@ -226,12 +282,12 @@ export default function ResultsPage() {
             >
               {pushing ? 'Pushing...' : `Push ${selectedIds.size} to HubSpot`}
             </button>
-            <a
-              href={getExportCsvUrl(postUrl)}
+            <button
+              onClick={() => downloadCsv(postUrl).catch((err) => alert(err.message))}
               className="px-4 py-2 text-xs font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Export CSV
-            </a>
+            </button>
           </div>
         </div>
       )}
@@ -247,6 +303,25 @@ export default function ResultsPage() {
             ? `Error: ${pushResult.error}`
             : `✅ Pushed ${pushResult.pushed} leads to HubSpot. ${pushResult.failed > 0 ? `${pushResult.failed} failed.` : ''}`
           }
+        </div>
+      )}
+
+      {/* Follow-up result notification */}
+      {followUpResult && (
+        <div className={`mb-4 p-3 rounded-xl text-sm ${
+          followUpResult.error
+            ? 'bg-red-50 border border-red-200 text-red-700'
+            : 'bg-green-50 border border-green-200 text-green-700'
+        }`} role="status">
+          {followUpResult.error ? `Error: ${followUpResult.error}` : followUpResult.started === 0 ? (
+            'These leads are already in this sequence.'
+          ) : (
+            <>
+              Started follow-ups for {followUpResult.started} lead{followUpResult.started === 1 ? '' : 's'}
+              {followUpResult.alreadyRunning > 0 && ` (${followUpResult.alreadyRunning} already in this sequence)`}.
+              {' '}First drafts will appear on the <Link to="/follow-ups" className="underline font-medium">Follow-ups</Link> page shortly.
+            </>
+          )}
         </div>
       )}
 
@@ -277,15 +352,15 @@ export default function ResultsPage() {
       {/* Export button (bottom) */}
       {leads.length > 0 && (
         <div className="mt-4 flex justify-end">
-          <a
-            href={getExportCsvUrl(postUrl)}
+          <button
+            onClick={() => downloadCsv(postUrl).catch((err) => alert(err.message))}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Export All as CSV
-          </a>
+          </button>
         </div>
       )}
     </div>

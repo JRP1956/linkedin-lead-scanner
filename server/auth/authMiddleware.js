@@ -1,7 +1,4 @@
 const jwt = require('jsonwebtoken');
-const { getDb } = require('../db/queries');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
 /**
  * Authentication Middleware (I1)
@@ -29,7 +26,7 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (err) {
@@ -74,9 +71,9 @@ function generateToken(user) {
       orgId: user.org_id,
       role: user.role,
     },
-    JWT_SECRET,
+    process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 }
 
-module.exports = { authenticate, requireRole, scopeByOrg, generateToken, JWT_SECRET };
+module.exports = { authenticate, requireRole, scopeByOrg, generateToken };

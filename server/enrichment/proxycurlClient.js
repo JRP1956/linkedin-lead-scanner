@@ -6,6 +6,8 @@
  * Gracefully skips if PROXYCURL_API_KEY is not set.
  */
 
+const { recordUsage } = require('../db/usageQueries');
+
 const PROXYCURL_BASE = 'https://nubela.co/proxycurl/api/v2';
 
 /**
@@ -49,6 +51,7 @@ async function enrichProfile(linkedinUrl) {
     }
 
     const profile = await res.json();
+    recordUsage({ kind: 'proxycurl', costUsd: parseFloat(process.env.PROXYCURL_COST_PER_CALL) || 0, detail: linkedinUrl });
 
     const result = {
       headline: profile.headline || null,

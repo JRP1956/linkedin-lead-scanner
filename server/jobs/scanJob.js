@@ -8,6 +8,10 @@ const { generateDrafts } = require('../outreach/draftGenerator');
 const queries = require('../db/queries');
 const { getSuppressedUrls } = require('../db/suppressionQueries');
 const { recordAppearance, getAppearanceCounts } = require('../db/signalQueries');
+const { scanContext, recordUsage, assertUnderDailyCap, dailyLimit } = require('../db/usageQueries');
+
+// Intent assigned to people who only reacted: same as a generic "Great post!" comment
+const REACTION_INTENT = { tier: 'T4', score: 8, reasoning: 'Reacted to the post without commenting.', signals: [] };
 
 /**
  * Run the full lead scanning pipeline for a LinkedIn post URL.
@@ -21,20 +25,28 @@ const { recordAppearance, getAppearanceCounts } = require('../db/signalQueries')
  * 4. Score ICP
  * 5. Classify intent via Claude (single batch)
  * 6. Rank by combined score
- * 7. Generate outreach drafts for leads scoring 40+
- * 8. Save all leads to SQLite
+ * 7. Save all leads to SQLite
+ * 8. Generate outreach drafts for leads scoring 40+ (each saved as it's written)
+ *
+ * Enrichment results are saved as they arrive, so a crash mid-scan doesn't waste
+ * Apollo credits: a re-run hits the enrichment cache.
  *
  * @param {Object} options
  * @param {string} options.postUrl - LinkedIn post URL to scan
  * @param {string} [options.outreachMode='direct'] - Outreach angle
  * @param {string} [options.icpProfileName='icp'] - ICP profile name from config/
+ * @param {boolean} [options.includeReactions=false] - Also score people who reacted
  * @returns {{ emitter: EventEmitter, promise: Promise }}
  */
-function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
+function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp', includeReactions = false }) {
   const emitter = new EventEmitter();
 
-  const promise = (async () => {
+  const promise = scanContext.run({ postUrl }, async () => {
     try {
+      // Every scan opens LinkedIn in a real browser session; cap them to protect the account
+      assertUnderDailyCap('scan', dailyLimit('MAX_SCANS_PER_DAY', 10));
+      recordUsage({ kind: 'scan', detail: includeReactions ? 'comments+reactions' : 'comments' });
+
       // Load ICP config from YAML
       const icp = loadICP(icpProfileName);
 
@@ -44,7 +56,7 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
         message: 'Extracting commenters from post...',
       });
 
-      const commenters = await scrapeComments(postUrl);
+      const commenters = await scrapeComments(postUrl, { includeReactions });
 
       emitter.emit('progress', {
         step: 'scraped',
@@ -105,7 +117,7 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
           companyDomain: null,
         });
 
-        enrichedLeads.push({
+        const enrichedLead = {
           ...commenter,
           linkedinUrl: commenter.profileUrl,
           firstName: enriched?.firstName || commenter.name?.split(' ')[0] || null,
@@ -118,7 +130,14 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
           estimatedRevenue: enriched?.estimatedRevenue || null,
           industry: enriched?.industry || null,
           fundingStage: enriched?.fundingStage || null,
-        });
+        };
+        enrichedLeads.push(enrichedLead);
+
+        // Persist immediately so a later failure doesn't throw away the Apollo credit.
+        // Only leads with an email are reused by the enrichment cache, so only those are worth saving early.
+        if (enrichedLead.linkedinUrl && enrichedLead.email && !scoreICP(enrichedLead, icp).excluded) {
+          queries.upsertLead({ ...enrichedLead, postUrl });
+        }
 
         // Pause between batches to respect Apollo rate limits
         if ((i + 1) % batchSize === 0 && i + 1 < filtered.length) {
@@ -147,11 +166,11 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
         message: 'Analysing comment intent via AI...',
       });
 
-      // Map comments with IDs for Claude
-      const commentsForClassification = nonExcludedLeads.map((lead, index) => ({
-        id: index,
-        text: lead.commentText || '',
-      }));
+      // Map comments with IDs for Claude (reactions have no text to classify)
+      const commentsForClassification = nonExcludedLeads
+        .map((lead, index) => ({ id: index, text: lead.commentText || '', engagementType: lead.engagementType }))
+        .filter((c) => c.engagementType !== 'reaction')
+        .map(({ id, text }) => ({ id, text }));
 
       let intentResults = [];
       try {
@@ -168,7 +187,7 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
       // Merge intent results back into leads
       const intentMap = new Map(intentResults.map((r) => [r.id, r]));
       const leadsWithIntent = nonExcludedLeads.map((lead, index) => {
-        const intent = intentMap.get(index);
+        const intent = lead.engagementType === 'reaction' ? REACTION_INTENT : intentMap.get(index);
         return {
           ...lead,
           intentTier: intent?.tier || 'T4',
@@ -190,7 +209,31 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
 
       const rankedLeads = rankLeads(leadsWithAppearances);
 
-      // ─── Step 7: Generate outreach drafts for leads scoring 40+ ───────
+      // ─── Step 7: Save to SQLite ───────────────────────────────────────
+      const enrichedCount = enrichedLeads.filter((l) => l.email).length;
+
+      // Save scanned post record
+      queries.insertScannedPost({
+        postUrl,
+        commenterCount: commenters.length,
+        enrichedCount,
+      });
+
+      // Save all leads (and record appearances for signal stacking)
+      for (const lead of rankedLeads) {
+        // Record appearance for signal stacking
+        if (lead.linkedinUrl) {
+          recordAppearance({
+            linkedinUrl: lead.linkedinUrl,
+            postUrl,
+            commentText: lead.commentText || null,
+          });
+        }
+
+        saveLead(lead, postUrl);
+      }
+
+      // ─── Step 8: Generate outreach drafts for leads scoring 40+ ───────
       const eligibleLeads = rankedLeads.filter((l) => l.totalScore >= 40);
 
       emitter.emit('progress', {
@@ -224,62 +267,11 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
           lead.outreachDraftTopic = drafts.topic;
           lead.outreachDraftPain = drafts.pain;
           lead.outreachDraftCampaign = drafts.campaign;
+          saveLead(lead, postUrl);
         } catch (err) {
           console.error(`[ScanJob] Draft generation failed for ${lead.name}:`, err.message);
           // Continue without drafts for this lead
         }
-      }
-
-      // ─── Step 8: Save to SQLite ───────────────────────────────────────
-      const enrichedCount = enrichedLeads.filter((l) => l.email).length;
-
-      // Save scanned post record
-      queries.insertScannedPost({
-        postUrl,
-        commenterCount: commenters.length,
-        enrichedCount,
-      });
-
-      // Save all leads (and record appearances for signal stacking)
-      for (const lead of rankedLeads) {
-        // Record appearance for signal stacking
-        if (lead.linkedinUrl) {
-          recordAppearance({
-            linkedinUrl: lead.linkedinUrl,
-            postUrl,
-            commentText: lead.commentText || null,
-          });
-        }
-
-        queries.upsertLead({
-          postUrl,
-          linkedinUrl: lead.linkedinUrl,
-          name: lead.name,
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-          title: lead.title,
-          company: lead.company,
-          companyDomain: lead.companyDomain,
-          email: lead.email,
-          headcountRange: lead.headcountRange,
-          estimatedRevenue: lead.estimatedRevenue,
-          industry: lead.industry,
-          fundingStage: lead.fundingStage,
-          commentText: lead.commentText,
-          commentDate: lead.commentDate,
-          intentTier: lead.intentTier,
-          intentScore: lead.intentScore,
-          intentReasoning: lead.intentReasoning,
-          intentSignals: lead.intentSignals,
-          icpScore: lead.icpScore,
-          totalScore: lead.totalScore,
-          dataConfidence: lead.dataConfidence,
-          outreachDraftDirect: lead.outreachDraftDirect || null,
-          outreachDraftTopic: lead.outreachDraftTopic || null,
-          outreachDraftPain: lead.outreachDraftPain || null,
-          outreachDraftCampaign: lead.outreachDraftCampaign || null,
-          appearanceCount: lead.appearanceCount || 1,
-        });
       }
 
       // ─── Complete ─────────────────────────────────────────────────────
@@ -313,9 +305,42 @@ function runScan({ postUrl, outreachMode = 'direct', icpProfileName = 'icp' }) {
       });
       throw err;
     }
-  })();
+  });
 
   return { emitter, promise };
+}
+
+function saveLead(lead, postUrl) {
+  queries.upsertLead({
+    postUrl,
+    linkedinUrl: lead.linkedinUrl,
+    name: lead.name,
+    firstName: lead.firstName,
+    lastName: lead.lastName,
+    title: lead.title,
+    company: lead.company,
+    companyDomain: lead.companyDomain,
+    email: lead.email,
+    headcountRange: lead.headcountRange,
+    estimatedRevenue: lead.estimatedRevenue,
+    industry: lead.industry,
+    fundingStage: lead.fundingStage,
+    commentText: lead.commentText,
+    commentDate: lead.commentDate,
+    engagementType: lead.engagementType,
+    intentTier: lead.intentTier,
+    intentScore: lead.intentScore,
+    intentReasoning: lead.intentReasoning,
+    intentSignals: lead.intentSignals,
+    icpScore: lead.icpScore,
+    totalScore: lead.totalScore,
+    dataConfidence: lead.dataConfidence,
+    outreachDraftDirect: lead.outreachDraftDirect || null,
+    outreachDraftTopic: lead.outreachDraftTopic || null,
+    outreachDraftPain: lead.outreachDraftPain || null,
+    outreachDraftCampaign: lead.outreachDraftCampaign || null,
+    appearanceCount: lead.appearanceCount || 1,
+  });
 }
 
 /**

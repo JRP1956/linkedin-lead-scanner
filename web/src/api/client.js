@@ -1,13 +1,62 @@
 const API_BASE = '/api';
+const TOKEN_KEY = 'authToken';
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* storage unavailable: stay logged in for this page only */ }
+}
+
+export function logout() {
+  setToken(null);
+  window.dispatchEvent(new Event('auth-required'));
+}
+
+/**
+ * Every API call below goes through this: it attaches the login token and tells
+ * the app to show the login screen when the server says 401.
+ */
+async function fetch(url, options = {}) {
+  const token = getToken();
+  const res = await window.fetch(url, {
+    ...options,
+    headers: { ...options.headers, ...(token && { Authorization: `Bearer ${token}` }) },
+  });
+  if (res.status === 401 && !url.startsWith(`${API_BASE}/auth/`)) {
+    window.dispatchEvent(new Event('auth-required'));
+  }
+  return res;
+}
+
+export async function login(email, password) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message);
+  const data = await res.json();
+  setToken(data.token);
+  return data.user;
+}
+
+// ─── Scans ───────────────────────────────────────────────────────────────────
 
 /**
  * Start a scan job and return an EventSource for SSE streaming.
  */
-export function startScan({ postUrl, outreachMode, icpProfile }) {
+export function startScan({ postUrl, outreachMode, icpProfile, includeReactions }) {
   return fetch(`${API_BASE}/scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ postUrl, outreachMode, icpProfile }),
+    body: JSON.stringify({ postUrl, outreachMode, icpProfile, includeReactions }),
   });
 }
 
@@ -69,10 +118,16 @@ export async function pushBatchToHubspot(leadIds) {
 }
 
 /**
- * Get CSV export URL for a post.
+ * Download the CSV export for a post (fetched with the login token, then saved).
  */
-export function getExportCsvUrl(postUrl) {
-  return `${API_BASE}/leads/export-csv?postUrl=${encodeURIComponent(postUrl)}`;
+export async function downloadCsv(postUrl) {
+  const res = await fetch(`${API_BASE}/leads/export-csv?postUrl=${encodeURIComponent(postUrl)}`);
+  if (!res.ok) throw new Error((await res.json()).message);
+  const filename = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'leads.csv';
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**
@@ -462,6 +517,54 @@ export async function recordMeeting({ leadId, campaignId, signalType, notes }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ leadId, campaignId, signalType, notes }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+// ─── Usage & Cost ────────────────────────────────────────────────────────────
+
+export async function getUsage(days = 30) {
+  const res = await fetch(`${API_BASE}/usage?days=${days}`);
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+// ─── Follow-up Review Queue ─────────────────────────────────────────────────
+
+export async function getFollowUps() {
+  const res = await fetch(`${API_BASE}/follow-ups`);
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+export async function updateFollowUp(id, message) {
+  const res = await fetch(`${API_BASE}/follow-ups/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+export async function markFollowUpSent(id) {
+  const res = await fetch(`${API_BASE}/follow-ups/${id}/sent`, { method: 'POST' });
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+export async function skipFollowUp(id) {
+  const res = await fetch(`${API_BASE}/follow-ups/${id}/skip`, { method: 'POST' });
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.json();
+}
+
+export async function startFollowUps(campaignId, leadIds) {
+  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/follow-ups/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leadIds }),
   });
   if (!res.ok) throw new Error((await res.json()).message);
   return res.json();

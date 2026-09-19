@@ -5,6 +5,7 @@ const queries = require('../db/queries');
 const { runScan } = require('./scanJob');
 const { sendLeadAlert } = require('../integrations/slackNotifier');
 const { runSignalDetection } = require('../signals/signalEngine');
+const { processDueSteps } = require('../outreach/sequenceEngine');
 
 chromium.use(StealthPlugin());
 
@@ -20,6 +21,7 @@ let cronJob = null;
  * 4. If new post detected → run full scanJob → send Slack alert with top leads
  * 5. Update last_checked_at and last_post_id
  * 6. Run signal detection engine (job changes, funding, hiring, keywords)
+ * 7. Draft follow-up messages that are due, for review
  */
 function startMonitorJob() {
   const schedule = process.env.MONITOR_CRON_SCHEDULE || '0 */6 * * *';
@@ -65,6 +67,13 @@ function startMonitorJobWithSchedule(schedule) {
         await runSignalDetection();
       } catch (err) {
         console.error('[Monitor] Signal detection error:', err.message);
+      }
+
+      // Draft any follow-ups that are now due (they wait in the review queue; nothing is sent)
+      try {
+        await processDueSteps();
+      } catch (err) {
+        console.error('[Monitor] Follow-up drafting error:', err.message);
       }
     } catch (err) {
       console.error('[Monitor] Job error:', err.message);

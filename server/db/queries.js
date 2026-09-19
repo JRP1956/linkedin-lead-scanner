@@ -37,6 +37,7 @@ function initDatabase(dbPath) {
     { column: 'linkedin_connections', sql: 'ALTER TABLE leads ADD COLUMN linkedin_connections INTEGER' },
     { column: 'pipedrive_person_id', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_person_id TEXT' },
     { column: 'pipedrive_pushed_at', sql: 'ALTER TABLE leads ADD COLUMN pipedrive_pushed_at TEXT' },
+    { column: 'engagement_type', sql: "ALTER TABLE leads ADD COLUMN engagement_type TEXT NOT NULL DEFAULT 'comment'" },
   ];
 
   const existingColumns = db.prepare("PRAGMA table_info('leads')").all().map((c) => c.name);
@@ -93,7 +94,7 @@ function upsertLead(lead) {
       intent_signals, icp_score, total_score, data_confidence,
       outreach_draft_direct, outreach_draft_topic, outreach_draft_pain,
       outreach_draft_campaign, hubspot_contact_id, hubspot_pushed_at,
-      appearance_count, apollo_sequence_id, apollo_sequenced_at
+      appearance_count, apollo_sequence_id, apollo_sequenced_at, engagement_type
     ) VALUES (
       @post_url, @linkedin_url, @name, @first_name, @last_name, @title, @company,
       @company_domain, @email, @headcount_range, @estimated_revenue, @industry, @funding_stage,
@@ -101,7 +102,7 @@ function upsertLead(lead) {
       @intent_signals, @icp_score, @total_score, @data_confidence,
       @outreach_draft_direct, @outreach_draft_topic, @outreach_draft_pain,
       @outreach_draft_campaign, @hubspot_contact_id, @hubspot_pushed_at,
-      @appearance_count, @apollo_sequence_id, @apollo_sequenced_at
+      @appearance_count, @apollo_sequence_id, @apollo_sequenced_at, @engagement_type
     )
     ON CONFLICT(linkedin_url) DO UPDATE SET
       post_url = excluded.post_url,
@@ -116,15 +117,15 @@ function upsertLead(lead) {
       estimated_revenue = COALESCE(excluded.estimated_revenue, leads.estimated_revenue),
       industry = COALESCE(excluded.industry, leads.industry),
       funding_stage = COALESCE(excluded.funding_stage, leads.funding_stage),
-      comment_text = excluded.comment_text,
-      comment_date = excluded.comment_date,
-      intent_tier = excluded.intent_tier,
-      intent_score = excluded.intent_score,
-      intent_reasoning = excluded.intent_reasoning,
-      intent_signals = excluded.intent_signals,
-      icp_score = excluded.icp_score,
-      total_score = excluded.total_score,
-      data_confidence = excluded.data_confidence,
+      comment_text = COALESCE(excluded.comment_text, leads.comment_text),
+      comment_date = COALESCE(excluded.comment_date, leads.comment_date),
+      intent_tier = COALESCE(excluded.intent_tier, leads.intent_tier),
+      intent_score = COALESCE(excluded.intent_score, leads.intent_score),
+      intent_reasoning = COALESCE(excluded.intent_reasoning, leads.intent_reasoning),
+      intent_signals = COALESCE(excluded.intent_signals, leads.intent_signals),
+      icp_score = COALESCE(excluded.icp_score, leads.icp_score),
+      total_score = COALESCE(excluded.total_score, leads.total_score),
+      data_confidence = COALESCE(excluded.data_confidence, leads.data_confidence),
       outreach_draft_direct = COALESCE(excluded.outreach_draft_direct, leads.outreach_draft_direct),
       outreach_draft_topic = COALESCE(excluded.outreach_draft_topic, leads.outreach_draft_topic),
       outreach_draft_pain = COALESCE(excluded.outreach_draft_pain, leads.outreach_draft_pain),
@@ -133,7 +134,8 @@ function upsertLead(lead) {
       hubspot_pushed_at = COALESCE(excluded.hubspot_pushed_at, leads.hubspot_pushed_at),
       appearance_count = COALESCE(excluded.appearance_count, leads.appearance_count),
       apollo_sequence_id = COALESCE(excluded.apollo_sequence_id, leads.apollo_sequence_id),
-      apollo_sequenced_at = COALESCE(excluded.apollo_sequenced_at, leads.apollo_sequenced_at)
+      apollo_sequenced_at = COALESCE(excluded.apollo_sequenced_at, leads.apollo_sequenced_at),
+      engagement_type = CASE WHEN leads.engagement_type = 'comment' THEN 'comment' ELSE excluded.engagement_type END
   `);
 
   return stmt.run({
@@ -168,6 +170,7 @@ function upsertLead(lead) {
     appearance_count: lead.appearanceCount || lead.appearance_count || 1,
     apollo_sequence_id: lead.apolloSequenceId || lead.apollo_sequence_id || null,
     apollo_sequenced_at: lead.apolloSequencedAt || lead.apollo_sequenced_at || null,
+    engagement_type: lead.engagementType || lead.engagement_type || 'comment',
   });
 }
 

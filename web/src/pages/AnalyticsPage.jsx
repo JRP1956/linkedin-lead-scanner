@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getCampaignAnalytics, getSignalAnalytics, getReplyRateAnalytics, getPipelineAnalytics } from '../api/client';
+import { getCampaignAnalytics, getSignalAnalytics, getReplyRateAnalytics, getPipelineAnalytics, getUsage } from '../api/client';
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState('campaigns');
@@ -7,6 +7,7 @@ export default function AnalyticsPage() {
   const [signalData, setSignalData] = useState([]);
   const [replyData, setReplyData] = useState({ byCampaign: [], byIntentTier: [] });
   const [pipelineData, setPipelineData] = useState({ stages: [], totalLeads: 0 });
+  const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,7 +17,9 @@ export default function AnalyticsPage() {
       getSignalAnalytics().catch(() => []),
       getReplyRateAnalytics().catch(() => ({ byCampaign: [], byIntentTier: [] })),
       getPipelineAnalytics().catch(() => ({ stages: [], totalLeads: 0 })),
-    ]).then(([c, s, r, p]) => {
+      getUsage().catch(() => null),
+    ]).then(([c, s, r, p, u]) => {
+      setUsage(u);
       setCampaignData(c);
       setSignalData(s);
       setReplyData(r);
@@ -29,6 +32,7 @@ export default function AnalyticsPage() {
     { key: 'signals', label: '📡 Signals', icon: '📡' },
     { key: 'replies', label: '💬 Reply Rates', icon: '💬' },
     { key: 'pipeline', label: '🔄 Pipeline', icon: '🔄' },
+    { key: 'usage', label: '💲 Usage & Cost', icon: '💲' },
   ];
 
   if (loading) return (
@@ -215,6 +219,67 @@ export default function AnalyticsPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Usage & Cost */}
+      {tab === 'usage' && (
+        <div className="space-y-6">
+          {!usage ? (
+            <p className="text-slate-500 text-sm">Usage data unavailable.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  ['Scans today', `${usage.today.scans} / ${usage.today.scanLimit || '∞'}`],
+                  ['Emails today', `${usage.today.emails} / ${usage.today.emailLimit || '∞'}`],
+                  ['Spend (30 days)', `$${usage.byDay.reduce((sum, d) => sum + d.cost_usd, 0).toFixed(2)}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <div className="text-sm text-slate-500">{label}</div>
+                    <div className="text-2xl font-semibold text-slate-800 mt-1 tabular-nums">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-800 mb-1">Cost per Scan</h2>
+                <p className="text-xs text-slate-500 mb-4">
+                  Claude cost is exact. Apollo/Proxycurl are $0 unless you set APOLLO_COST_PER_CREDIT / PROXYCURL_COST_PER_CALL.
+                </p>
+                {usage.byScan.length === 0 ? (
+                  <p className="text-slate-500 text-sm">No scans in the last 30 days</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-2 px-3 text-slate-600">Post</th>
+                          <th className="text-right py-2 px-3 text-slate-600">Leads</th>
+                          <th className="text-right py-2 px-3 text-slate-600">Apollo credits</th>
+                          <th className="text-right py-2 px-3 text-slate-600">Claude tokens</th>
+                          <th className="text-right py-2 px-3 text-slate-600">Cost</th>
+                          <th className="text-right py-2 px-3 text-slate-600">Cost / lead</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usage.byScan.map((scan) => (
+                          <tr key={scan.post_url} className="border-b border-slate-100 hover:bg-slate-50 tabular-nums">
+                            <td className="py-2 px-3 max-w-xs truncate" title={scan.post_url}>{scan.post_url.replace(/^https:\/\/(www\.)?linkedin\.com\/posts\//, '')}</td>
+                            <td className="py-2 px-3 text-right">{scan.leads}</td>
+                            <td className="py-2 px-3 text-right">{scan.apollo_credits}</td>
+                            <td className="py-2 px-3 text-right">{scan.claude_tokens.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-right font-medium">${scan.cost_usd.toFixed(2)}</td>
+                            <td className="py-2 px-3 text-right">{scan.leads ? `$${(scan.cost_usd / scan.leads).toFixed(3)}` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 const queries = require('../db/queries');
+const { recordUsage } = require('../db/usageQueries');
 
 // ─── Error Constants ─────────────────────────────────────────────────────────
 
@@ -126,6 +127,10 @@ async function enrichPerson({ fullName, linkedinUrl, companyDomain }) {
 
       const data = await res.json();
       const person = data.person;
+
+      if (person) {
+        recordUsage({ kind: 'apollo', costUsd: parseFloat(process.env.APOLLO_COST_PER_CREDIT) || 0, detail: linkedinUrl });
+      }
 
       if (!person) {
         console.log(`[Apollo] ${timestamp} | No match for ${fullName}`);

@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { ask, objectSchema } = require('../ai/claude');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,8 +13,12 @@ try {
   console.error(`[DraftGenerator] Could not read prompt template at ${outreachPromptPath}:`, err.message);
 }
 
-// Initialize Anthropic client
-const anthropic = new Anthropic();
+const DRAFTS_SCHEMA = objectSchema({
+  direct: { type: 'string' },
+  topic: { type: 'string' },
+  pain: { type: 'string' },
+  campaign: { type: 'string' },
+});
 
 /**
  * Generate all 4 outreach draft modes for a single lead using Claude API.
@@ -42,40 +46,10 @@ async function generateDrafts(lead, postContext, campaignName) {
 
   const fullPrompt = `${outreachPromptTemplate}\n\nLead profile:\n${JSON.stringify(leadProfile, null, 2)}`;
 
-  const timestamp = new Date().toISOString();
-  console.log(`[DraftGenerator] ${timestamp} | Generating drafts for ${leadProfile.name}`);
+  console.log(`[DraftGenerator] Generating drafts for ${leadProfile.name}`);
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: fullPrompt }],
-    });
-
-    // Log token usage for cost monitoring
-    const inputTokens = response.usage?.input_tokens || 0;
-    const outputTokens = response.usage?.output_tokens || 0;
-    console.log(
-      `[DraftGenerator] ${timestamp} | Tokens — input: ${inputTokens}, output: ${outputTokens}, ` +
-      `estimated cost: $${((inputTokens * 0.003 + outputTokens * 0.015) / 1000).toFixed(4)}`
-    );
-
-    const responseText = response.content[0].text.trim();
-
-    // Parse JSON response
-    let drafts;
-    try {
-      drafts = JSON.parse(responseText);
-    } catch {
-      // Handle markdown-wrapped JSON
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        drafts = JSON.parse(jsonMatch[0]);
-      } else {
-        console.error('[DraftGenerator] Failed to parse Claude response:', responseText);
-        throw new Error('Failed to parse outreach draft response');
-      }
-    }
+    const drafts = await ask({ prompt: fullPrompt, schema: DRAFTS_SCHEMA, tag: 'drafts' });
 
     // Handle campaign mode — load custom prompt if campaign name specified
     if (campaignName) {

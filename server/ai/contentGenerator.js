@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { ask, objectSchema } = require('./claude');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,7 +10,17 @@ try {
   console.warn(`[ContentGenerator] Could not read prompt: ${err.message}`);
 }
 
-const anthropic = new Anthropic();
+const CONTENT_SCHEMA = objectSchema({
+  post: { type: 'string' },
+  hook: { type: 'string' },
+  hashtags: { type: 'array', items: { type: 'string' } },
+  estimated_engagement: { type: 'string', enum: ['low', 'medium', 'high'] },
+  best_posting_time: { type: 'string' },
+  content_type: {
+    type: 'string',
+    enum: ['thought_leadership', 'case_study', 'tip', 'story', 'question', 'controversial_take'],
+  },
+});
 
 /**
  * Content Generator (H3)
@@ -33,22 +43,8 @@ Audience: ${audience || 'B2B professionals'}
 Format: ${format || 'story'}`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text = response.content[0].text.trim();
-    try {
-      return { success: true, content: JSON.parse(text) };
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return { success: true, content: JSON.parse(jsonMatch[0]) };
-      }
-      return { success: true, content: { post: text } };
-    }
+    const content = await ask({ prompt, schema: CONTENT_SCHEMA, tag: 'generate-content' });
+    return { success: true, content };
   } catch (err) {
     console.error('[ContentGenerator] Error:', err.message);
     return { success: false, error: err.message };

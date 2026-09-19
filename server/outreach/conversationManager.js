@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { ask, objectSchema } = require('../ai/claude');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright-extra');
@@ -19,7 +19,16 @@ try {
   console.warn(`[ConversationManager] Could not read classifier prompt: ${err.message}`);
 }
 
-const anthropic = new Anthropic();
+const REPLY_SCHEMA = objectSchema({
+  sentiment: { type: 'string', enum: ['positive', 'neutral', 'negative'] },
+  intent: {
+    type: 'string',
+    enum: ['interested', 'meeting_request', 'more_info', 'not_interested', 'out_of_office', 'wrong_person', 'unsubscribe'],
+  },
+  action: { type: 'string', enum: ['stop_sequence', 'continue_sequence', 'pause_sequence', 'escalate'] },
+  confidence: { type: 'number' },
+  reason: { type: 'string' },
+});
 
 /**
  * Conversation Manager (D4)
@@ -149,19 +158,7 @@ async function classifyReply(replyText, lead) {
   const prompt = `${classifierPrompt}\n\n--- REPLY ---\nFrom: ${lead.name} (${lead.title} @ ${lead.company})\nReply text: "${replyText}"`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text = response.content[0].text.trim();
-    try {
-      return JSON.parse(text);
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-    }
+    return await ask({ prompt, schema: REPLY_SCHEMA, tag: 'reply-classifier', maxTokens: 4000 });
   } catch (err) {
     console.error(`[ConversationManager] Classification error:`, err.message);
     return null;

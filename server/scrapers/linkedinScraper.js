@@ -57,6 +57,23 @@ const SELECTORS = {
     fallback: '[data-tracking-control-name="public_post_contextual-sign-in"]',
     fallback2: '.authwall-join-form',
   },
+  // Reaction count button under the post (opens the reactors modal)
+  reactionsButton: {
+    primary: 'button.social-details-social-counts__count-value',
+    fallback: 'button[aria-label*="reaction"]',
+    fallback2: '.social-details-social-counts__reactions button',
+  },
+  // One person row inside the reactors modal
+  reactorItem: {
+    primary: '.social-details-reactors-tab-body-list-item',
+    fallback: '[role="dialog"] li.artdeco-list__item',
+    fallback2: '[role="dialog"] li',
+  },
+  // "Show more results" inside the reactors modal
+  reactorsLoadMore: {
+    primary: '[role="dialog"] button.scaffold-finite-scroll__load-button',
+    fallback: '[role="dialog"] button[aria-label*="more"]',
+  },
   // Rate limit / challenge page
   challengePage: {
     primary: '#captcha-internal',
@@ -126,13 +143,60 @@ function normalizeProfileUrl(url) {
 
 // ─── Main Scraper Function ───────────────────────────────────────────────────
 
+const MAX_REACTORS = 50;
+
 /**
- * Scrape all comments from a LinkedIn post URL.
+ * Open the reactors modal and collect up to MAX_REACTORS people who reacted.
+ * Returns [] (never throws) if the modal can't be found, so comment results still come through.
+ */
+async function scrapeReactions(page) {
+  const button = await queryWithFallback(page, SELECTORS.reactionsButton, '$');
+  if (!button) {
+    console.warn('[Scraper] Reactions button not found — skipping reactions');
+    return [];
+  }
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await humanDelay();
+  await button.click();
+  await page.waitForTimeout(2000);
+
+  // Load more reactors until we hit the cap or run out
+  for (let i = 0; i < 10; i++) {
+    const items = await queryWithFallback(page, SELECTORS.reactorItem);
+    if (items.length >= MAX_REACTORS) break;
+    const more = await queryWithFallback(page, SELECTORS.reactorsLoadMore, '$');
+    if (!more) break;
+    await humanDelay();
+    await more.click().catch(() => {});
+    await page.waitForTimeout(1500);
+  }
+
+  const items = (await queryWithFallback(page, SELECTORS.reactorItem)).slice(0, MAX_REACTORS);
+  const reactors = [];
+  for (const item of items) {
+    const link = await item.$('a[href*="/in/"]');
+    if (!link) continue;
+    const profileUrl = normalizeProfileUrl(await link.getAttribute('href'));
+    const nameEl = await item.$('.artdeco-entity-lockup__title, [data-anonymize="person-name"]');
+    const name = nameEl ? (await nameEl.innerText()).split('\n')[0].trim() : 'Unknown';
+    reactors.push({ name, profileUrl, commentText: '', commentDate: '', engagementType: 'reaction' });
+  }
+
+  await page.keyboard.press('Escape').catch(() => {});
+  console.log(`[Scraper] Extracted ${reactors.length} reactors`);
+  return reactors;
+}
+
+/**
+ * Scrape all comments (and optionally reactions) from a LinkedIn post URL.
  *
  * @param {string} postUrl - Full LinkedIn post URL
- * @returns {Promise<Array<{name: string, profileUrl: string, commentText: string, commentDate: string}>>}
+ * @param {Object} [options]
+ * @param {boolean} [options.includeReactions=false] - Also collect people who reacted
+ * @returns {Promise<Array<{name: string, profileUrl: string, commentText: string, commentDate: string, engagementType: string}>>}
  */
-async function scrapeComments(postUrl) {
+async function scrapeComments(postUrl, { includeReactions = false } = {}) {
   const browserProfilePath = process.env.BROWSER_PROFILE_PATH || './browser-profile';
 
   console.log(`[Scraper] Launching browser with profile: ${browserProfilePath}`);
@@ -220,7 +284,7 @@ async function scrapeComments(postUrl) {
     console.log('[Scraper] Extracting comments...');
     const commentElements = await queryWithFallback(page, SELECTORS.commentItem);
 
-    if (commentElements.length === 0) {
+    if (commentElements.length === 0 && !includeReactions) {
       const err = new Error(
         'No comments found. LinkedIn may have updated its DOM structure, or the post has no comments.'
       );
@@ -299,6 +363,7 @@ async function scrapeComments(postUrl) {
             profileUrl,
             commentText: commentText || '',
             commentDate: commentDate || '',
+            engagementType: 'comment',
           });
           profilesProcessed++;
         }
@@ -308,6 +373,19 @@ async function scrapeComments(postUrl) {
     }
 
     console.log(`[Scraper] Extracted ${comments.length} unique comments`);
+
+    if (includeReactions) {
+      const reactors = await scrapeReactions(page);
+      // A commenter who also reacted stays a commenter (stronger signal)
+      comments.push(...reactors.filter((r) => r.profileUrl && !seenUrls.has(r.profileUrl)));
+    }
+
+    if (comments.length === 0) {
+      const err = new Error('No comments or reactions found. LinkedIn may have updated its DOM structure.');
+      err.code = LINKEDIN_SELECTOR_FAILED;
+      throw err;
+    }
+
     return comments;
   } finally {
     await context.close();

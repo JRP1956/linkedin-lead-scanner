@@ -130,7 +130,7 @@ function getDashboardSummary() {
   const activeCampaigns = db.prepare("SELECT COUNT(*) as count FROM campaigns WHERE status = 'active'").get().count;
 
   const recentSignals = db.prepare(
-    'SELECT COUNT(*) as count FROM detected_signals WHERE detected_at >= datetime("now", "-7 days")'
+    "SELECT COUNT(*) as count FROM detected_signals WHERE detected_at >= datetime('now', '-7 days')"
   ).get().count;
 
   const meetingsBooked = db.prepare(
